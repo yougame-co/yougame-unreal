@@ -36,7 +36,9 @@ room where each sees the other move (Room Send), and score, leaderboard and feed
    `git clone https://github.com/yougame-co/yougame-unreal.git Plugins/YouGame`, or unzip the zip
    into `Plugins/`. Reopen the project, let it build, and enable **YouGame** in Edit > Plugins.
 5. In Project Settings > Plugins > YouGame set **Game Slug** to the part after `/g/` in your
-   listing's address; tick **Use Staging** for a staging listing. No listing yet? Leave Game Slug
+   listing's address. On YouGame the build always uses the site it is played on (yougame.co or
+   staging.yougame.co), so the same zip works on both; **Use Staging** only matters on your own
+   host, for a listing on staging.yougame.co. No listing yet? Leave Game Slug
    empty: hosted on your own https page, the build asks YouGame for that page's own listing
    (made on its first load, claimed later with a `yougame.json`), so sign-in and online work
    before you have one.

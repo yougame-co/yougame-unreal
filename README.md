@@ -23,8 +23,8 @@ Your project must be a **C++** project (in a Blueprint project, add any C++ clas
 
 1. Reopen the project, let it build, and enable **YouGame** in Edit > Plugins.
 2. In Project Settings > Plugins > YouGame, set **Game Slug** to the part after `/g/` in your
-   listing's address. Tick **Use Staging** for a staging listing. No listing yet? Leave it empty:
-   on YouGame the build uses the page's own listing.
+   listing's address. No listing yet? Leave it empty: on YouGame the build uses the page's own
+   listing, and the same build works on yougame.co and on staging.yougame.co.
 
 ## Make a browser game
 

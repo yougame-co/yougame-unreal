@@ -25,9 +25,10 @@ asks for a desktop build.
    subsystem, so it runs by itself: **M** finds a match, and every player sees the others as copies
    of their own pawn. Then adapt it to the game.
 5. **Listing.** `Config/DefaultGame.ini`, section `[/Script/YouGame.YouGameSettings]`:
-   `GameSlug=<the part after /g/ in the listing's address>`, and `bUseStaging=True` for a listing
-   on staging.yougame.co. Leaving `GameSlug` empty is fine: on YouGame the build uses the listing
-   of the page it runs on.
+   `GameSlug=<the part after /g/ in the listing's address>`. Leaving it empty is fine: on YouGame
+   the build uses the listing of the page it runs on, and the site it is played on (yougame.co or
+   staging.yougame.co), so one zip works on both. `bUseStaging=True` only matters when the game
+   is hosted somewhere else and its listing is on staging.yougame.co.
 
 Do **not** edit the packaged `index.html`, add YouGame's JavaScript SDK tag, or call `YouGame.*`
 from the page. The plugin talks to the SDK itself.

@@ -1,7 +1,7 @@
 {
 	"FileVersion": 3,
-	"Version": 2,
-	"VersionName": "0.1.1",
+	"Version": 3,
+	"VersionName": "0.1.2",
 	"FriendlyName": "YouGame",
 	"Description": "The YouGame plugin: sign-in, scores, leaderboards, saves, feedback and match tickets through the YouGame app on the player's computer, or through yougame.co in a browser build.",
 	"Category": "Online",

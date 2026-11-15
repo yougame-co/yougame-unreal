@@ -43,6 +43,7 @@ static const char YouGameWebShimSource[] = R"YGWEB(// yougame-unreal-web.js: the
   var PREFIX = "[yougame-unreal] ";
 
   var config = { staging: false, game: "", compatibility: "", version: "" };
+  var pageSdk = ""; // set by init: the page's own YouGame site's sdk.js, "" off YouGame
   var sink = null;
   // Bumped by every init and stop: an answer from an earlier generation is dropped, so a game
   // instance never hears another one's calls.
@@ -110,20 +111,37 @@ static const char YouGameWebShimSource[] = R"YGWEB(// yougame-unreal-web.js: the
   function initSdk(sdk) {
     if (initedSdk === sdk) return;
     initedSdk = sdk;
-    if (!config.game) {
-      log("no Game Slug in Project Settings: YouGame.init skipped (scores and online need it off yougame.co)");
-      return;
-    }
+    // No Game Slug: "auto" asks YouGame for this page's own listing (made on first load, claimed
+    // later with yougame.json), so a build hosted anywhere gets sign-in, scores and online play
+    // before it has a listing. On yougame.co the listing is already known and this changes nothing.
+    var game = config.game || "auto";
     if (typeof sdk.init !== "function") {
       log("this YouGame SDK has no init: skipped");
       return;
     }
     try {
-      sdk.init({ game: config.game });
-      info("init game=" + config.game);
+      sdk.init({ game: game });
+      info("init game=" + game);
     } catch (e) {
       log("YouGame.init failed");
     }
+  }
+
+  // The SDK of the YouGame site this page belongs to, or "" off YouGame. Game pages are served
+  // from <id>.yougame.co (production), <id>-stg.yougame.co (staging) and <id>-sN.yougame.co (our
+  // own staging copies, staging-N.yougame.co). A host we do not recognise leaves it to Use Staging.
+  function pageSdkUrl() {
+    var host = "";
+    try {
+      host = String((root.location && root.location.hostname) || "").toLowerCase();
+    } catch (e) {}
+    var m;
+    if (host === "staging.yougame.co" || /^[a-z0-9]+-stg\.yougame\.co$/.test(host)) return STAGING_SDK_URL;
+    if ((m = /^staging-([1-9])\.yougame\.co$/.exec(host)) || (m = /^[a-z0-9]+-s([1-9])\.yougame\.co$/.exec(host))) {
+      return "https://staging-" + m[1] + ".yougame.co/sdk.js";
+    }
+    if (host === "yougame.co" || host === "www.yougame.co" || /^[a-z0-9]+\.yougame\.co$/.test(host)) return SDK_URL;
+    return "";
   }
 
   function loadSdk() {
@@ -136,7 +154,7 @@ static const char YouGameWebShimSource[] = R"YGWEB(// yougame-unreal-web.js: the
       var doc = root.document;
       if (!doc || !doc.createElement) return reject(new Error("No page to load the YouGame SDK into"));
       var script = doc.createElement("script");
-      script.src = config.staging ? STAGING_SDK_URL : SDK_URL;
+      script.src = pageSdk || (config.staging ? STAGING_SDK_URL : SDK_URL);
       script.async = true;
       script.onload = function () {
         if (root.YouGame) {
@@ -641,14 +659,19 @@ static const char YouGameWebShimSource[] = R"YGWEB(// yougame-unreal-web.js: the
     generation++;
     forgetRoom();
     nextConfig = nextConfig || {};
+    // On a YouGame game page the site is the page's own, whatever Use Staging says: one build
+    // plays on yougame.co and on staging.yougame.co. Anywhere else the setting decides.
+    pageSdk = pageSdkUrl();
+    var wantStaging = !!nextConfig.staging;
     config = {
-      staging: !!nextConfig.staging,
+      staging: pageSdk ? pageSdk !== SDK_URL : wantStaging,
       game: typeof nextConfig.game === "string" ? nextConfig.game.trim() : "",
       compatibility: typeof nextConfig.compatibility === "string" ? nextConfig.compatibility : "",
       version: typeof nextConfig.version === "string" ? nextConfig.version : "",
     };
     sink = nextSink || defaultSink();
     info("start (" + (config.staging ? "staging" : "production") + ")");
+    if (pageSdk && config.staging !== wantStaging) info("this page is on YouGame's " + (config.staging ? "staging" : "production") + " site: Use Staging is ignored here");
     var mine = generation;
     // A friend's invite opened the game: tell it, the way the desktop's friendRoom push does.
     loadSdk().then(function (sdk) {
