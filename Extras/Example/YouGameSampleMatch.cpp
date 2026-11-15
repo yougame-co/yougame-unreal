@@ -211,10 +211,10 @@ void UYouGameSampleMatch::ShowStatus()
 			.Visibility(EVisibility::HitTestInvisible)
 			// Below YouGame's own button and its notices, which sit in the top left corner of a game on YouGame.
 			.Margin(FMargin(24.f, 76.f, 24.f, 0.f))
-			.Font(FCoreStyle::GetDefaultFontStyle("Bold", 16))
+			.Font(FCoreStyle::GetDefaultFontStyle("Bold", 18))
 			.ColorAndOpacity(FLinearColor::White)
-			.ShadowOffset(FVector2D(1.f, 1.f))
-			.ShadowColorAndOpacity(FLinearColor(0.f, 0.f, 0.f, 0.85f)), 100);
+			.ShadowOffset(FVector2D(1.5f, 1.5f))
+			.ShadowColorAndOpacity(FLinearColor::Black), 100);
 	}
 	FString Line;
 	if (RoomSize >= 2) Line = FString::Printf(TEXT("YouGame: connected, %d players"), RoomSize);
@@ -312,7 +312,7 @@ void UYouGameSampleMatch::MoveOthers(float DeltaTime)
 		{
 			AsCharacter->SetActorRotation(FMath::RInterpTo(Body->GetActorRotation(), Facing, DeltaTime, 10.f));
 		}
-		if (Gap.Z > 45.f && Move->IsMovingOnGround()) AsCharacter->Jump();
+		if (O.bRising && Gap.Z > 45.f && Move->IsMovingOnGround()) AsCharacter->Jump();
 		else if (Move->IsFalling()) AsCharacter->StopJumping();
 	}
 }
@@ -408,6 +408,9 @@ void UYouGameSampleMatch::OnRoomMessage(const FString& From, const FString& Data
 	}
 	if (From == MyId) return;
 	FYouGameSampleOther& O = Others.FindOrAdd(From);
+	// Going up since the last message: only then may the copy jump (MoveOthers). A late message from the top of a
+	// jump, arriving after the copy has landed, would otherwise make it hop again.
+	O.bRising = O.Body.IsValid() && Pos.Z > O.Target.Z + 3.f;
 	O.Target = Pos;
 	O.Yaw = Yaw;
 	if (O.Body.IsValid()) return;

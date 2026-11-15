@@ -45,6 +45,9 @@ room where each sees the other move (Room Send), and score, leaderboard and feed
 6. Wire the nodes (all under **YouGame** in the Blueprint menu): **Sign In**, then **Find Match**
    with Mode empty; on its Success the room is live. Send your own JSON with **Room Send**; read the
    others' with **On Room Message** and who is there with **On Room Players**.
+   Where to put it: a world subsystem (as the example is) runs in every level by itself. A new game
+   mode set only as the project's default does not run in the Third Person template's level, which
+   sets its own game mode in World Settings.
    **Find Match is the public queue.** For friends to play together, also bind **On Friend Room**
    and pass its Room to **Join Friend Room**: that is how a player who was invited, or whose invite
    was accepted, lands in the same room (the example does it).
