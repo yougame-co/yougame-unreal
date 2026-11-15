@@ -1,0 +1,30 @@
+{
+	"FileVersion": 3,
+	"Version": 1,
+	"VersionName": "0.1.0",
+	"FriendlyName": "YouGame",
+	"Description": "The YouGame plugin: sign-in, scores, leaderboards, saves, feedback and match tickets through the YouGame app on the player's computer, or through yougame.co in a browser build.",
+	"Category": "Online",
+	"CreatedBy": "YouGame",
+	"CreatedByURL": "https://yougame.co",
+	"DocsURL": "https://yougame.co/unreal/guide",
+	"MarketplaceURL": "",
+	"SupportURL": "",
+	"CanContainContent": false,
+	"IsBetaVersion": true,
+	"IsExperimentalVersion": false,
+	"Installed": false,
+	"Modules": [
+		{
+			"Name": "YouGame",
+			"Type": "Runtime",
+			"LoadingPhase": "Default",
+			"PlatformAllowList": [
+				"Win64",
+				"Mac",
+				"Linux",
+				"Wasm"
+			]
+		}
+	]
+}
