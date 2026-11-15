@@ -5,7 +5,8 @@ Sign-in, scores and leaderboards, saves, feedback and **online play** for Unreal
 from the plugin: **Find Match** puts the players in a YouGame room and **Room Send** passes your
 game's messages between them. There is no server for you to build or run.
 
-Full guide: **https://yougame.co/unreal/guide**
+Full guide: **[GUIDE.md](GUIDE.md)**. Using a coding agent (Claude Code, Codex, Cursor)? Point it at
+**[AGENTS.md](AGENTS.md)** and ask it to "make my game online with YouGame".
 
 Beta. Checked on Unreal 5.9 web builds (Chrome) and Unreal 5.8 Windows desktop builds.
 
@@ -40,7 +41,7 @@ Your project must be a **C++** project (in a Blueprint project, add any C++ clas
    online, open it in two windows signed in as two accounts and press Find Match in both.
 
 Windows desktop builds (played through the YouGame app) are covered in the
-[guide](https://yougame.co/unreal/guide) too.
+[guide](GUIDE.md) too.
 
 ## Licence
 
