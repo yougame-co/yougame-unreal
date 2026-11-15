@@ -75,8 +75,8 @@ from the page. The plugin talks to the SDK itself.
    title and a real screenshot as the thumbnail). A new version: `update_game` with the slug.
 4. No MCP? The developer drops the zip on the **Web game** tab at https://yougame.co/upload.
 
-The upload report may say the build has no YouGame SDK: for an Unreal build the plugin is the
-SDK, so ignore that and do not add a script tag.
+The upload report lists an Unreal build as an "Unreal web package": the plugin is its SDK, so
+there is no script tag to add.
 
 ## Hosting it on the developer's own site instead
 
