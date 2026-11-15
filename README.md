@@ -18,7 +18,9 @@ From your project's folder:
 git clone https://github.com/yougame-co/yougame-unreal.git Plugins/YouGame
 ```
 
-or download this repo's ZIP (or the zip on the latest release) and unzip it to `Plugins/YouGame`.
+or download the zip from the [latest release](https://github.com/yougame-co/yougame-unreal/releases/latest)
+and unzip it into `Plugins/` (it makes `Plugins/YouGame`). `YouGame.uplugin` must end up at
+`Plugins/YouGame/YouGame.uplugin`; GitHub's green "Download ZIP" has an extra top folder to remove.
 Your project must be a **C++** project (in a Blueprint project, add any C++ class first).
 
 1. Reopen the project, let it build, and enable **YouGame** in Edit > Plugins.
@@ -34,7 +36,10 @@ Your project must be a **C++** project (in a Blueprint project, add any C++ clas
 3. Wire the nodes, all under **YouGame** in the Blueprint menu: **Sign In**, then **Find Match**.
    Send your game's JSON with **Room Send**, and read the other players' with **On Room Message**.
    A ready C++ example is in `Extras/Example` (copy it into your game module; the guide says how).
-4. Package for **Wasm** (Shipping). Put a `yougame.json` containing
+4. Double-click `Plugins\YouGame\Extras\PackageWeb.bat` in your project (**not run on a developer
+   PC yet**). It packages for **Wasm** (Shipping) and gives you
+   `Saved\YouGameWeb\<Project>-YouGame.zip`; `PackageWeb.bat -Fast` links much faster, for test
+   builds. By hand instead: package for Wasm (Shipping), put a `yougame.json` containing
    `{"yougame":{"crossOriginIsolation":true}}` beside `index.html` in the output's `Wasm` folder,
    and zip that folder's contents.
 5. Upload the zip as a **Web game** at https://yougame.co/upload, then play it in Chrome. To try

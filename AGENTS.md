@@ -16,14 +16,21 @@ asks for a desktop build.
    keep the two online subsystem plugins off, since they do not run in a browser:
    `{"Name": "OnlineSubsystemUtils", "Enabled": true, "PlatformDenyList": ["Wasm"]}` and the same
    for `OnlineSubsystemNull`.
-3. **`Source/<Module>/<Module>.Build.cs`.** Add `"YouGame"` to `PublicDependencyModuleNames`.
+3. **`Source/<Module>/<Module>.Build.cs`.** Add `"YouGame"` to `PublicDependencyModuleNames`
+   (and `"Slate"`, `"SlateCore"` when you copy the example in step 4).
 4. **Game code, in C++.** Blueprint assets are binary, so write C++. The calls are on
    `UYouGameSubsystem` and the async actions in `Source/YouGame/Public`: **Sign In**, then **Find
    Match** with Mode empty (on Success the room is live), **Room Send** for your own JSON, **On Room
-   Message** and **On Room Players** to read the others. The fastest working start: copy
-   `Extras/Example/YouGameSampleMatch.h` and `.cpp` into `Source/<Module>/` unchanged. It is a world
+   Message** and **On Room Players** to read the others. Find Match is the public queue: for
+   friend invites also bind `UYouGameSubsystem::OnFriendRoom` and call **Join Friend Room** with
+   its Room, or an invited friend never reaches the room (the example does this). The fastest working start: copy
+   `Extras/Example/YouGameSampleMatch.h` and `.cpp` into `Source/<Module>/` unchanged. It draws
+   its status line with Slate, so the module needs `"Slate"` and `"SlateCore"` too (the Third Person
+   template lists Slate but not SlateCore; without it the build stops on link errors). It is a world
    subsystem, so it runs by itself: **M** finds a match, and every player sees the others as copies
-   of their own pawn. Then adapt it to the game.
+   of their own pawn. It also shows every other call on a key: **F** friend room, **I** invite,
+   **K** submit score, **L** leaderboard, **B** feedback, **O** save, **P** load, **X** clear save,
+   **U** sign in. Then adapt it to the game.
 5. **Listing.** `Config/DefaultGame.ini`, section `[/Script/YouGame.YouGameSettings]`:
    `GameSlug=<the part after /g/ in the listing's address>`. Leaving it empty is fine: on YouGame
    the build uses the listing of the page it runs on, and the site it is played on (yougame.co or
@@ -39,16 +46,39 @@ from the page. The plugin talks to the SDK itself.
 2. Double-click `Plugins\YouGame\Extras\SetupWeb.bat` once (installs Emscripten 6.0.10, which
    Unreal 5.9 needs), then restart the editor.
 3. Open the project, let it rebuild, check **YouGame** is ticked in Edit > Plugins.
-4. Package: **Platforms > Wasm > Package Project** (Shipping), or
+4. Package and zip: double-click `Plugins\YouGame\Extras\PackageWeb.bat` (**not run on a developer
+   PC yet**). It packages for Wasm (Shipping), adds the `yougame.json` and writes
+   `Saved\YouGameWeb\<Project>-YouGame.zip`; the build itself is `Saved\YouGameWeb\Wasm` (that is
+   `<Out>\Wasm` below). The first package of a Third Person game takes about 35-40 minutes; later
+   ones about 15. `-Fast` is for test builds: it links much faster and the game runs a little
+   slower. If you can run commands on that PC, run the script itself, which does not wait for a
+   key and exits with 0 only when the zip is made:
+   `powershell -NoProfile -ExecutionPolicy Bypass -File Plugins\YouGame\Extras\PackageWeb.ps1`.
+5. By hand instead of step 4: **Platforms > Wasm > Package Project** (Shipping), or
    `RunUAT.bat BuildCookRun -project=<P>.uproject -platform=Wasm -clientconfig=Shipping -build -cook -stage -pak -iostore -package -archive -archivedirectory=<Out> -unattended`.
-   The first package of a Third Person game takes about 35-40 minutes; later ones about 15.
-5. Put a `yougame.json` containing `{"yougame":{"crossOriginIsolation":true}}` beside `index.html`
-   in `<Out>\Wasm`, and zip that folder's **contents** (never `Wasm-Debug`).
+   Then put a `yougame.json` containing `{"yougame":{"crossOriginIsolation":true}}` beside
+   `index.html` in `<Out>\Wasm`, and zip that folder's **contents** (never `Wasm-Debug`).
 
-## Upload and test
+## Upload (you can do this for the developer)
 
-- With the YouGame MCP connected and signed in: `upload_token`, then
-  `node upload-build.mjs <Out>\Wasm` (it sends the ~140 MB `.wasm` in parts). Without it: the
-  **Web game** tab of the upload page takes the zip.
-- Test online: open the listing in two Chrome windows signed in as two accounts and press the
-  game's Find Match in both. The browser console prints `[yougame-unreal] ...` for each step.
+1. YouGame's MCP: `claude mcp add --transport http yougame https://yougame.co/mcp` (Codex:
+   `codex mcp add yougame --url https://yougame.co/mcp`). Its guides and search work signed out.
+   Uploading needs the developer signed in: ask them to type `/mcp` in Claude Code, choose
+   yougame and sign in (Codex: `codex mcp login yougame`).
+2. Call `upload_token` and run the line it returns. It is
+   `node upload-build.mjs <folder or zip>` with the token in the environment; get the script with
+   `curl -fsS https://yougame.co/upload-build.mjs -o upload-build.mjs`. Point it at `<Out>\Wasm`
+   (or the zip). Files over 100 MB go up in parts, so the ~140 MB `.wasm` is fine.
+3. A new game: `publish_game` with the upload id (it makes the listing; ask the developer for a
+   title and a real screenshot as the thumbnail). A new version: `update_game` with the slug.
+4. No MCP? The developer drops the zip on the **Web game** tab at https://yougame.co/upload.
+
+The upload report may say the build has no YouGame SDK: for an Unreal build the plugin is the
+SDK, so ignore that and do not add a script tag.
+
+## Test
+
+Open the listing in two Chrome windows signed in as two accounts (one can be Incognito), click
+the game, and press the game's Find Match in both. Each should see the other move. The browser
+console prints `[yougame-unreal] ...` for every step, which is the first place to look when
+something does not answer.

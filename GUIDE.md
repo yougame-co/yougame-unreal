@@ -45,26 +45,39 @@ room where each sees the other move (Room Send), and score, leaderboard and feed
 6. Wire the nodes (all under **YouGame** in the Blueprint menu): **Sign In**, then **Find Match**
    with Mode empty; on its Success the room is live. Send your own JSON with **Room Send**; read the
    others' with **On Room Message** and who is there with **On Room Players**.
+   **Find Match is the public queue.** For friends to play together, also bind **On Friend Room**
+   and pass its Room to **Join Friend Room**: that is how a player who was invited, or whose invite
+   was accepted, lands in the same room (the example does it).
    A ready example is in the zip: `YouGame/Extras/Example/YouGameSampleMatch.h` and `.cpp` (C++, the
    same calls). Copy both into your game module's `Source/<Module>/` folder and add `"YouGame"` to
-   `PublicDependencyModuleNames` in `<Module>.Build.cs`. In the game: **M** Find Match; **F** Friend
+   `PublicDependencyModuleNames` in `<Module>.Build.cs`, with `"Slate"` and `"SlateCore"` (the example
+   draws its status line with them; without `"SlateCore"` the build stops on link errors). In the game: **M** Find Match; **F** Friend
    Room, then **I** Invite Friend (the friend who accepts lands in your room); **K** Submit Score, **L**
-   Get Leaderboard, **B** Open Feedback. In a room each player sends its position about 10 times a
+   Get Leaderboard, **B** Open Feedback; **O** Save (where you stand), **P** Load (puts you back
+   there), **X** Clear Save; **U** Sign In. In a room each player sends its position about 10 times a
    second with Room Send, and every other player appears as a copy of your character that moves where
-   they move. The browser console logs each step as `[yougame-unreal] sample: ...`. Our staging web
+   they move. When a second player joins, each steps to their own place beside the start, and a line
+   at the top left says "connected, 2 players". The browser console logs each step as `[yougame-unreal] sample: ...`. Our staging web
    sample runs it.
-7. Package: in the editor, **Platforms > Wasm > Package Project** (Shipping), then pick an output
-   folder `<Out>`. Or from a command prompt in `Engine\Build\BatchFiles`:
+7. Package and zip: double-click `Plugins\YouGame\Extras\PackageWeb.bat` in your project
+   (**not run on a developer PC yet**). It finds the project and Unreal 5.9, packages it for Wasm
+   (Shipping), adds the `yougame.json` a web build needs on YouGame, and zips the result. You get
+   `Saved\YouGameWeb\<Project>-YouGame.zip`, ready to upload; the same build is the folder
+   `Saved\YouGameWeb\Wasm`. A Third Person game takes about 35-40 minutes and is about 130 MB.
+   `PackageWeb.bat -Fast` is for test builds: it links much faster and the game runs a little
+   slower. It warns when the `.uproject` entries of step 3 are missing, and never edits your files.
+   `-Out <folder>` puts the build somewhere else; `-NoZip` leaves out the zip.
+8. By hand instead of step 7: in the editor, **Platforms > Wasm > Package Project** (Shipping),
+   then pick an output folder `<Out>`. Or from a command prompt in `Engine\Build\BatchFiles`:
    `RunUAT.bat BuildCookRun -project=<P>.uproject -platform=Wasm -clientconfig=Shipping -build -cook
--stage -pak -iostore -package -archive -archivedirectory=<Out> -unattended`. A Third Person game
-   takes about 35-40 minutes and is about 130 MB. `<Out>\Wasm` is the whole site; never upload
-   `Wasm-Debug`.
-8. Put a `yougame.json` with `{"yougame":{"crossOriginIsolation":true}}` at the root of
-   `<Out>\Wasm`, beside `index.html`. Zip the folder's contents.
+-stage -pak -iostore -package -archive -archivedirectory=<Out> -unattended`. `<Out>\Wasm` is the
+   whole site; never upload `Wasm-Debug`. Put a `yougame.json` with
+   `{"yougame":{"crossOriginIsolation":true}}` at the root of `<Out>\Wasm`, beside `index.html`,
+   and zip the folder's contents.
 9. Upload it as a **web game**: on YouGame's upload page (Create) keep the first tab, **Web game**,
    and drop the zip (a new game), or upload it as a new version from your game's Manage page. The
    **Unreal game** tab only explains these steps; its Windows choice is for desktop builds. Or have
-   your coding agent run `node upload-build.mjs build.zip` (the zip, or the `<Out>\Wasm` folder
+   your coding agent run `node upload-build.mjs build.zip` (the zip, or the `Wasm` folder
    itself; the YouGame MCP's `upload_token` gives it the token). Up to 5 GB per build and 512 MB per file; files over 100 MB go up in parts,
    so the ~140 MB `.wasm` is fine.
 10. Play it from the listing in Chrome (WebGPU, Chrome 133 or newer). To try online, open it in two
