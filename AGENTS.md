@@ -83,8 +83,7 @@ there is no script tag to add.
 ## Hosting it on the developer's own site instead
 
 It works there too (sign-in, Find Match, friend rooms, feedback). The host must send COOP
-`same-origin` and COEP `require-corp` and serve a ~150 MB file. Keep `yougame.json` beside
-`index.html`. With `GameSlug` empty the game gets its own YouGame page on first load: the console
+`same-origin` and COEP `require-corp` and serve a ~150 MB file. With `GameSlug` empty the game gets its own YouGame page on first load: the console
 prints a claim link; add `"game": "<address they want>"` and `"owner": "<their YouGame username>"`
 to `yougame.json`, and have the developer open the link, claim, add a screenshot and publish.
 See "On your own site" in [GUIDE.md](GUIDE.md).
