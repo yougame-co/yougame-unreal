@@ -75,6 +75,8 @@ room where each sees the other move (Room Send), and score, leaderboard and feed
    `PackageWeb.bat -Fast` is for test builds: it links much faster and the game runs a little
    slower. It warns when the `.uproject` entries of step 3 are missing, and never edits your files.
    `-Out <folder>` puts the build somewhere else; `-NoZip` leaves out the zip.
+   Your first Unreal build may show a Windows firewall prompt for `UbaServer`: that is Unreal's own
+   build accelerator, not the plugin.
 8. By hand instead of step 7: in the editor, **Platforms > Wasm > Package Project** (Shipping),
    then pick an output folder `<Out>`. Or from a command prompt in `Engine\Build\BatchFiles`:
    `RunUAT.bat BuildCookRun -project=<P>.uproject -platform=Wasm -clientconfig=Shipping -build -cook

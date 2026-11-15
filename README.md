@@ -36,8 +36,7 @@ Your project must be a **C++** project (in a Blueprint project, add any C++ clas
 3. Wire the nodes, all under **YouGame** in the Blueprint menu: **Sign In**, then **Find Match**.
    Send your game's JSON with **Room Send**, and read the other players' with **On Room Message**.
    A ready C++ example is in `Extras/Example` (copy it into your game module; the guide says how).
-4. Double-click `Plugins\YouGame\Extras\PackageWeb.bat` in your project (**not run on a developer
-   PC yet**). It packages for **Wasm** (Shipping) and gives you
+4. Double-click `Plugins\YouGame\Extras\PackageWeb.bat` in your project (run on our own Windows PC so far). It packages for **Wasm** (Shipping) and gives you
    `Saved\YouGameWeb\<Project>-YouGame.zip`; `PackageWeb.bat -Fast` links much faster, for test
    builds. By hand instead: package for Wasm (Shipping), put a `yougame.json` containing
    `{"yougame":{"crossOriginIsolation":true}}` beside `index.html` in the output's `Wasm` folder,

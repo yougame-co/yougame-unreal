@@ -48,8 +48,10 @@ from the page. The plugin talks to the SDK itself.
 2. Double-click `Plugins\YouGame\Extras\SetupWeb.bat` once (installs Emscripten 6.0.10, which
    Unreal 5.9 needs), then restart the editor.
 3. Open the project, let it rebuild, check **YouGame** is ticked in Edit > Plugins.
-4. Package and zip: double-click `Plugins\YouGame\Extras\PackageWeb.bat` (**not run on a developer
-   PC yet**). It packages for Wasm (Shipping), adds the `yougame.json` and writes
+4. Package and zip: double-click `Plugins\YouGame\Extras\PackageWeb.bat` (run on our own Windows
+   PC so far; an agent with a terminal runs `PackageWeb.ps1` beside it, since the .bat waits for a
+   key). Tell them their first Unreal build may show a Windows firewall prompt for `UbaServer`,
+   Unreal's own build accelerator. It packages for Wasm (Shipping), adds the `yougame.json` and writes
    `Saved\YouGameWeb\<Project>-YouGame.zip`; the build itself is `Saved\YouGameWeb\Wasm` (that is
    `<Out>\Wasm` below). The first package of a Third Person game takes about 35-40 minutes; later
    ones about 15. `-Fast` is for test builds: it links much faster and the game runs a little
