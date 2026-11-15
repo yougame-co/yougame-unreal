@@ -53,7 +53,7 @@ void UYouGameSampleMatch::Tick(float DeltaTime)
 	Played += DeltaTime;
 	if (!bHaveStart)
 	{
-		if (const APawn* Me = PC->GetPawn()) { Start = Me->GetActorLocation(); bHaveStart = true; }
+		if (const APawn* Me = PC->GetPawn()) { Start = Me->GetActorLocation(); StartRight = Me->GetActorRightVector(); bHaveStart = true; }
 	}
 	if (NoteLeft > 0.f)
 	{
@@ -349,7 +349,7 @@ void UYouGameSampleMatch::OnRoomPlayers(const TArray<FYouGameRoomPlayer>& Player
 	ShowStatus();
 	if (Players.Num() < 2) { bSentHello = false; bPlaced = false; return; }
 	// Everyone starts a level on the same spot, where the other player's copy would stand inside you and you would
-	// see one character. So each player still near the start steps to their own place around it: the same order of
+	// see one character. So each player still near the start steps to their own place beside it: the same order of
 	// players on every screen gives each a different place.
 	if (!bPlaced)
 	{
@@ -363,8 +363,10 @@ void UYouGameSampleMatch::OnRoomPlayers(const TArray<FYouGameRoomPlayer>& Player
 		APawn* Me = PC ? PC->GetPawn() : nullptr;
 		if (Me && bHaveStart && FVector::DistSquared2D(Me->GetActorLocation(), Start) < FMath::Square(250.f))
 		{
-			const float Angle = 2.f * PI * float(Place) / float(Ids.Num());
-			const FVector To = Start + FVector(FMath::Cos(Angle), FMath::Sin(Angle), 0.f) * 150.f;
+			// Side by side, 2 m apart, across the way everyone faces at the start: in front of or behind the start a
+			// player would stand in the others' cameras.
+			const float Across = (float(Place) - 0.5f * float(Ids.Num() - 1)) * 200.f;
+			const FVector To = Start + FVector(StartRight.X, StartRight.Y, 0.f).GetSafeNormal() * Across;
 			Me->SetActorLocation(FVector(To.X, To.Y, Me->GetActorLocation().Z), false, nullptr, ETeleportType::TeleportPhysics);
 		}
 	}

@@ -56,11 +56,11 @@ room where each sees the other move (Room Send), and score, leaderboard and feed
    Get Leaderboard, **B** Open Feedback; **O** Save (where you stand), **P** Load (puts you back
    there), **X** Clear Save; **U** Sign In. In a room each player sends its position about 10 times a
    second with Room Send, and every other player appears as a copy of your character that moves where
-   they move. When a second player joins, each steps to their own place beside the start, and a line
+   they move. When a second player joins, the players line up side by side at the start, and a line
    at the top left says "connected, 2 players". The browser console logs each step as `[yougame-unreal] sample: ...`. Our staging web
    sample runs it.
 7. Package and zip: double-click `Plugins\YouGame\Extras\PackageWeb.bat` in your project
-   (**not run on a developer PC yet**). It finds the project and Unreal 5.9, packages it for Wasm
+   (**run once on our own Windows PC so far**). It finds the project and Unreal 5.9, packages it for Wasm
    (Shipping), adds the `yougame.json` a web build needs on YouGame, and zips the result. You get
    `Saved\YouGameWeb\<Project>-YouGame.zip`, ready to upload; the same build is the folder
    `Saved\YouGameWeb\Wasm`. A Third Person game takes about 35-40 minutes and is about 130 MB.

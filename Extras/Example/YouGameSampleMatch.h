@@ -83,6 +83,7 @@ private:
 	float NoteLeft = 0.f;
 	// Where you started, and whether you already stepped to your own place beside it for this room.
 	FVector Start = FVector::ZeroVector;
+	FVector StartRight = FVector::RightVector;
 	bool bHaveStart = false;
 	bool bPlaced = false;
 	FVector LastSent = FVector(FLT_MAX);
