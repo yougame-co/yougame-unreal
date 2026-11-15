@@ -78,6 +78,15 @@ from the page. The plugin talks to the SDK itself.
 The upload report may say the build has no YouGame SDK: for an Unreal build the plugin is the
 SDK, so ignore that and do not add a script tag.
 
+## Hosting it on the developer's own site instead
+
+It works there too (sign-in, Find Match, friend rooms, feedback). The host must send COOP
+`same-origin` and COEP `require-corp` and serve a ~150 MB file. Keep `yougame.json` beside
+`index.html`. With `GameSlug` empty the game gets its own YouGame page on first load: the console
+prints a claim link; add `"game": "<address they want>"` and `"owner": "<their YouGame username>"`
+to `yougame.json`, and have the developer open the link, claim, add a screenshot and publish.
+See "On your own site" in [GUIDE.md](GUIDE.md).
+
 ## Test
 
 Tell the developer how to play with one friend: press the game's friend-room key (**F** in the

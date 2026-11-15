@@ -276,32 +276,44 @@ void UYouGameSampleMatch::MoveOthers(float DeltaTime)
 {
 	for (TPair<FString, FYouGameSampleOther>& It : Others)
 	{
-		APawn* Body = It.Value.Body.Get();
+		FYouGameSampleOther& O = It.Value;
+		APawn* Body = O.Body.Get();
 		if (!Body) continue;
 		const FVector From = Body->GetActorLocation();
-		const FVector Gap = It.Value.Target - From;
+		const FVector Gap = O.Target - From;
+		const FRotator Facing(0.f, O.Yaw, 0.f);
 		ACharacter* AsCharacter = Cast<ACharacter>(Body);
 		UCharacterMovementComponent* Move = AsCharacter ? AsCharacter->GetCharacterMovement() : nullptr;
-		// A character within a few steps of its player walks there: real movement, so it runs, turns and jumps like yours.
-		if (Move && Gap.SizeSquared() < FMath::Square(400.f))
+		if (!Move)
 		{
-			const float Flat = Gap.Size2D();
-			if (Flat > 15.f)
-			{
-				AsCharacter->AddMovementInput(FVector(Gap.X, Gap.Y, 0.f).GetSafeNormal(), FMath::Clamp(Flat / 100.f, 0.3f, 1.f));
-			}
-			else
-			{
-				AsCharacter->SetActorRotation(FMath::RInterpTo(Body->GetActorRotation(), FRotator(0.f, It.Value.Yaw, 0.f), DeltaTime, 10.f));
-			}
-			if (Gap.Z > 45.f && Move->IsMovingOnGround()) AsCharacter->Jump();
-			else if (Move->IsFalling()) AsCharacter->StopJumping();
+			// Not a character: it glides to where its player is.
+			Body->SetActorLocationAndRotation(FMath::VInterpTo(From, O.Target, DeltaTime, 12.f), Facing, false, nullptr, ETeleportType::TeleportPhysics);
 			continue;
 		}
-		// Too far behind (or not a character): put it there.
-		const FVector To = FMath::VInterpTo(From, It.Value.Target, DeltaTime, 12.f);
-		Body->SetActorLocationAndRotation(To, FRotator(0.f, It.Value.Yaw, 0.f), false, nullptr, ETeleportType::TeleportPhysics);
-		if (Move) Move->Velocity = FVector::ZeroVector;
+		// A character runs to where its player is with its own movement, so it runs, turns and jumps like yours.
+		const float Flat = Gap.Size2D();
+		O.Behind = Flat > 300.f ? O.Behind + DeltaTime : 0.f;
+		// Far away, far above or below, or behind for too long (something is in the way): put it there in one step.
+		if (Flat > 1200.f || FMath::Abs(Gap.Z) > 400.f || O.Behind > 1.5f)
+		{
+			Body->SetActorLocationAndRotation(O.Target, Facing, false, nullptr, ETeleportType::TeleportPhysics);
+			Move->Velocity = FVector::ZeroVector;
+			Move->SetDefaultMovementMode();
+			O.Behind = 0.f;
+			continue;
+		}
+		if (Flat > 15.f)
+		{
+			// Messages arrive a moment late: behind by more than a couple of steps, it runs a little faster to catch up.
+			Move->MaxWalkSpeed = O.WalkSpeed * (Flat > 200.f ? 1.5f : 1.f);
+			AsCharacter->AddMovementInput(FVector(Gap.X, Gap.Y, 0.f).GetSafeNormal(), FMath::Clamp(Flat / 100.f, 0.3f, 1.f));
+		}
+		else
+		{
+			AsCharacter->SetActorRotation(FMath::RInterpTo(Body->GetActorRotation(), Facing, DeltaTime, 10.f));
+		}
+		if (Gap.Z > 45.f && Move->IsMovingOnGround()) AsCharacter->Jump();
+		else if (Move->IsFalling()) AsCharacter->StopJumping();
 	}
 }
 
@@ -418,7 +430,14 @@ void UYouGameSampleMatch::OnRoomMessage(const FString& From, const FString& Data
 			Capsule->SetCollisionResponseToChannel(ECC_Camera, ECR_Ignore);
 		}
 		if (USkeletalMeshComponent* Mesh = AsCharacter->GetMesh()) Mesh->SetCollisionResponseToChannel(ECC_Camera, ECR_Ignore);
-		if (UCharacterMovementComponent* Move = AsCharacter->GetCharacterMovement()) Move->bRunPhysicsWithNoController = true;
+		if (UCharacterMovementComponent* Move = AsCharacter->GetCharacterMovement())
+		{
+			// A character nobody controls does not move by itself: switch its movement on and put it in its walking
+			// mode (the engine only does that at spawn for a character that already has this set).
+			Move->bRunPhysicsWithNoController = true;
+			Move->SetDefaultMovementMode();
+			O.WalkSpeed = Move->MaxWalkSpeed;
+		}
 	}
 	else
 	{

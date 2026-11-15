@@ -26,6 +26,8 @@ struct FYouGameSampleOther
 	TWeakObjectPtr<APawn> Body;
 	FVector Target = FVector::ZeroVector;
 	float Yaw = 0.f;
+	float WalkSpeed = 600.f; // the character's own walking speed, read when its copy is made
+	float Behind = 0.f;      // seconds it has been more than a few steps behind its player
 };
 
 UCLASS()

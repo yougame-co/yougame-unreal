@@ -91,9 +91,24 @@ room where each sees the other move (Room Send), and score, leaderboard and feed
 10. Play it from the listing in Chrome (WebGPU, Chrome 133 or newer). To try online, open it in two
     windows signed in as two accounts and press your Find Match button in both.
 
-Hosting it elsewhere works too: the page needs cross-origin isolation (COOP same-origin, COEP
-require-corp). Off yougame.co, scores and online play use the Game Slug's listing, or with no
-slug, the page's own listing (the console prints its claim link).
+### On your own site, and still on YouGame
+
+Hosting it elsewhere works too, with sign-in, Find Match, friend rooms and feedback (checked by our
+agents on staging, 11-15). The page needs cross-origin isolation (COOP same-origin, COEP
+require-corp) and serves a file of about 150 MB, so itch.io, GitHub Pages and plain Cloudflare Pages
+do not fit as they come. Keep the `yougame.json` beside `index.html` (PackageWeb.bat writes it):
+without it YouGame does not recognise the page as using the plugin.
+
+Off yougame.co, scores and online play use the Game Slug's listing. With **no slug**, the game gets
+its own YouGame page just by being played:
+
+1. The first time the page loads, YouGame makes an unlisted listing for it. The browser console
+   prints its address and a claim link.
+2. Add two keys at the top level of `yougame.json`: `"game": "<the address you want>"` and
+   `"owner": "<your YouGame username>"`.
+3. Open the claim link, sign in, press **This is my game: claim it**, add a screenshot and a title,
+   and **Publish**. Your game's page on YouGame now has **Play on <your site>**, and it shows in
+   search.
 
 In a browser the same nodes talk to YouGame's web SDK (`sdk.js`) on the page instead of the YouGame
 app: Sign In, Submit Score, Get Leaderboard, Save, Load, Clear Save, Open Feedback, Find Match,
