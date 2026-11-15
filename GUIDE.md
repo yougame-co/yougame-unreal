@@ -48,6 +48,14 @@ room where each sees the other move (Room Send), and score, leaderboard and feed
    **Find Match is the public queue.** For friends to play together, also bind **On Friend Room**
    and pass its Room to **Join Friend Room**: that is how a player who was invited, or whose invite
    was accepted, lands in the same room (the example does it).
+   **Playing with one friend, fast:** in the example press **F** (a private room), then open
+   YouGame's sheet over the game (Shift+Tab) > Lobby > Invite friends. **Copy invite link** works for
+   anyone, friends on YouGame or not; or type their @username there.
+   **Your own game events:** Room Send carries any JSON, so send what happens in your game the same
+   way the example sends positions, and act on it in On Room Message. In C++:
+   `UYouGameRoomSendAction::RoomSend(World, TEXT("{\"hit\":{\"target\":\"<player id>\",\"damage\":10}}"), FString())->Activate();`
+   and in your On Room Message handler look for `"hit"` in `Data`. Unreal's own replication does
+   not run in a browser build: what you do not send, the other player does not see.
    A ready example is in the zip: `YouGame/Extras/Example/YouGameSampleMatch.h` and `.cpp` (C++, the
    same calls). Copy both into your game module's `Source/<Module>/` folder and add `"YouGame"` to
    `PublicDependencyModuleNames` in `<Module>.Build.cs`, with `"Slate"` and `"SlateCore"` (the example

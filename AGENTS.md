@@ -23,7 +23,9 @@ asks for a desktop build.
    Match** with Mode empty (on Success the room is live), **Room Send** for your own JSON, **On Room
    Message** and **On Room Players** to read the others. Find Match is the public queue: for
    friend invites also bind `UYouGameSubsystem::OnFriendRoom` and call **Join Friend Room** with
-   its Room, or an invited friend never reaches the room (the example does this). The fastest working start: copy
+   its Room, or an invited friend never reaches the room (the example does this). Unreal's own
+   replication does not run in a browser build: everything another player should see (positions,
+   hits, pickups, score) goes through **Room Send** as JSON and is applied in **On Room Message**. The fastest working start: copy
    `Extras/Example/YouGameSampleMatch.h` and `.cpp` into `Source/<Module>/` unchanged. It draws
    its status line with Slate, so the module needs `"Slate"` and `"SlateCore"` too (the Third Person
    template lists Slate but not SlateCore; without it the build stops on link errors). It is a world
@@ -77,6 +79,11 @@ The upload report may say the build has no YouGame SDK: for an Unreal build the 
 SDK, so ignore that and do not add a script tag.
 
 ## Test
+
+Tell the developer how to play with one friend: press the game's friend-room key (**F** in the
+example), open YouGame's sheet over the game (Shift+Tab) > Lobby > Invite friends, and use **Copy
+invite link** (works for anyone) or type the friend's @username. Find Match (**M**) is the public
+queue, where a stranger can match in.
 
 Open the listing in two Chrome windows signed in as two accounts (one can be Incognito), click
 the game, and press the game's Find Match in both. Each should see the other move. The browser
