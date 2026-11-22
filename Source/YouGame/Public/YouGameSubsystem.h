@@ -62,6 +62,16 @@ public:
 	UFUNCTION(BlueprintPure, Category = "YouGame", meta = (DisplayName = "Get Start State"))
 	FYouGameStartState GetStartState() const { return StartState; }
 
+	/**
+	 * The player pressed something that needs YouGame (Online, Friends, a YouGame button) in a game
+	 * started on its own. Starts YouGame quietly if it can; otherwise shows the Get YouGame / update
+	 * window, whose Play offline goes back to the game. Blocks while that window is up. Returns the
+	 * outcome, also sent to On Start State. Does nothing in a browser, in a game the app started, or
+	 * in the editor unless Start Check In Editor is on (returns the last state then).
+	 */
+	UFUNCTION(BlueprintCallable, Category = "YouGame", meta = (DisplayName = "Ask For YouGame"))
+	FYouGameStartState AskForYouGame();
+
 	/** Show a feedback button only while this is true. */
 	UFUNCTION(BlueprintPure, Category = "YouGame", meta = (DisplayName = "Should Show Feedback Button"))
 	bool ShouldShowFeedbackButton() const;
@@ -131,6 +141,16 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "YouGame")
 	void MenuButton(EYouGameInputKind Kind);
 
+	/**
+	 * Call on each change of what the game is doing (not every frame): Playing at match or level
+	 * start, Paused on the game's own pause, Menu on a main menu. YouGame then hides its button in
+	 * play and shows it on pause and in menus; a game that never calls this keeps the button's usual
+	 * fade. Fire-and-forget: kept across reconnects and sent again to a YouGame found later. Desktop:
+	 * yougame.h's yg_set_game_state; browser: the page's YouGame.setGameState. Older apps ignore it.
+	 */
+	UFUNCTION(BlueprintCallable, Category = "YouGame", meta = (DisplayName = "Set Game State"))
+	void SetGameState(EYouGameGameState State);
+
 	// Called from yougame.h's callbacks (inside yg_update, on the game thread). Not for games.
 	void HandleReady();
 	void HandlePlayer();
@@ -144,7 +164,10 @@ private:
 	void StartClient(bool bQuiet);
 	/** yg_shutdown, then every call still waiting fails with Code. */
 	void StopClient(const FString& Code, const FString& Error);
-	void RunStartCheck(bool bQuiet = false);
+	/** Ask: YG_START_ASK_* (on first use, the startup check asks later). */
+	void RunStartCheck(bool bQuiet = false, int32 Ask = -1);
+	/** Reads a background Get YouGame install's progress and sends On Start State when it moves. */
+	void PollGetYouGame();
 	void ReadHello();
 	/** Browser builds: starts the page's shim and asks it for the player facts. */
 	void StartWeb();
@@ -176,12 +199,21 @@ private:
 	FString WebHeldFriendRoom;
 	double WebHeldFriendRoomUntil = 0.0;
 
+	/** Set Game State's latest (EYouGameGameState as a number), or -1 before the first; Web: the one last sent. */
+	int32 GameState = -1;
+	int32 WebSentGameState = -1;
+
 	/** hello's signedIn (1, 0), or -1 when YouGame did not say. */
 	int32 SignedInFact = -1;
 	bool bWasConnected = false;
 	FYouGameUpdateState UpdateState;
 	FYouGameStartState StartState;
 	bool bStartUpdating = false;
+	/** Get YouGame is installing in the background: poll its progress each tick. */
+	bool bStartGetting = false;
+	/** The install's last stage and percent seen (YouGameStart::GetProgressChanged); -1/-2 before the first poll. */
+	int32 GetStage = -1;
+	int32 GetPercent = -2;
 	double StartUpdateUntil = 0.0;
 	double NextStartCheckAt = 0.0;
 

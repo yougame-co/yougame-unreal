@@ -40,8 +40,12 @@ struct FUpdateRetry
 };
 
 // Slug: the game's listing slug. TrayFrom: "0.13.1407" or similar; NULL/empty disables tray start.
-// Quiet: only look, never show or open anything.
-inline FOutcome Run(const char* Slug, bool bStaging, const char* TrayFrom, bool bQuiet)
+// Quiet: only look, never show or open anything. Ask: YG_START_ASK_AT_START (show the window when
+// YouGame is missing or can't start), YG_START_ASK_LATER (start it quietly if it can, never a
+// window) or YG_START_ASK_ON_USE (the player just pressed something that needs YouGame).
+// Name: the game's name as the window prints it ("Play <Name> online"); NULL/empty: "this game".
+inline FOutcome Run(const char* Slug, bool bStaging, const char* TrayFrom, bool bQuiet, int Ask = YG_START_ASK_AT_START,
+                    const char* Name = nullptr)
 {
 	FOutcome Out;
 	yg_start_options Options;
@@ -54,9 +58,22 @@ inline FOutcome Run(const char* Slug, bool bStaging, const char* TrayFrom, bool 
 	Options.update_to_cap = sizeof UpdateTo;
 	Options.update_to_magic = YG_START_UPDATE_TO_MAGIC;
 	Options.tray_from = (TrayFrom && *TrayFrom) ? TrayFrom : nullptr;
+	Options.ask = Ask;
+	Options.name = (Name && *Name) ? Name : nullptr;
 	Out.Result = yg_start(&Options);
 	if (Out.Result == YG_START_UPDATING) Out.UpdateVersion = UpdateTo;
 	return Out;
+}
+
+// A background install's progress (yg_start_get_progress), polled every tick: it says when
+// the stage or the percent moved, so On Start State fires only then. The subsystem keeps the two values
+// (its GetStage and GetPercent), since its public header does not include this one.
+inline bool GetProgressChanged(int& Stage, int& Percent, int NewStage, int NewPercent)
+{
+	if (NewStage == Stage && NewPercent == Percent) return false;
+	Stage = NewStage;
+	Percent = NewPercent;
+	return true;
 }
 
 inline const char* ResultName(yg_start_result Result)
@@ -66,10 +83,11 @@ inline const char* ResultName(yg_start_result Result)
 	case YG_START_RUNNING: return "running";
 	case YG_START_OPENED: return "started";
 	case YG_START_OFFERED: return "offered (Get YouGame pressed)";
-	case YG_START_DECLINED: return "offered (Not now)";
+	case YG_START_DECLINED: return "offered (Play offline)";
 	case YG_START_INSTALLED: return "installed, not running";
 	case YG_START_MISSING: return "not installed";
 	case YG_START_UPDATING: return "updating";
+	case YG_START_GETTING: return "installing in the background (Get YouGame pressed)";
 	default: return "not available here";
 	}
 }

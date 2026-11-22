@@ -46,6 +46,7 @@ namespace
 			Result.bOpened = Opened.bOpened;
 			if (Opened.Where == "overlay") Result.Where = EYouGameOpenedWhere::Overlay;
 			else if (Opened.Where == "browser") Result.Where = EYouGameOpenedWhere::Browser;
+			else if (Opened.Where == "window") Result.Where = EYouGameOpenedWhere::Window;
 		}
 		return Result;
 	}

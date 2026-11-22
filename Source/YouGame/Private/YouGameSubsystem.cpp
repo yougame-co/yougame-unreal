@@ -204,10 +204,66 @@ UYouGameSubsystem* UYouGameSubsystem::Get(const UObject* WorldContextObject)
 	return GameInstance ? GameInstance->GetSubsystem<UYouGameSubsystem>() : nullptr;
 }
 
-void UYouGameSubsystem::RunStartCheck(bool bQuiet)
+FYouGameStartState UYouGameSubsystem::AskForYouGame()
+{
+#if !YOUGAME_WEB
+	const bool bStartedByApp = !FPlatformMisc::GetEnvironmentVariable(TEXT("YOUGAME_STDIO")).IsEmpty() ||
+		!FPlatformMisc::GetEnvironmentVariable(TEXT("YOUGAME_BRIDGE")).IsEmpty();
+	if (bOwner && !bStartedByApp)
+	{
+		RunStartCheck(false, YG_START_ASK_ON_USE);
+	}
+#endif
+	return StartState;
+}
+
+#if !YOUGAME_WEB
+void UYouGameSubsystem::PollGetYouGame()
+{
+	int Percent = -1;
+	const int Stage = yg_start_get_progress(&Percent);
+	if (!YouGameStart::GetProgressChanged(GetStage, GetPercent, Stage, Stage == YG_START_GET_DOWNLOADING ? Percent : -1))
+	{
+		return;
+	}
+	StartState.Version.Reset();
+	StartState.Percent = -1;
+	switch (Stage)
+	{
+	case YG_START_GET_DOWNLOADING:
+		StartState.Result = EYouGameStartResult::Installing;
+		StartState.Percent = FMath::Clamp(Percent, 0, 100);
+		break;
+	case YG_START_GET_INSTALLING:
+		StartState.Result = EYouGameStartResult::Installing;
+		break;
+	case YG_START_GET_READY:
+		// Installed and started in the tray: look for its channel, as after Opened.
+		bStartGetting = false;
+		StartState.Result = EYouGameStartResult::Opened;
+		ReconnectUntil = FPlatformTime::Seconds() + ReconnectWindowSeconds;
+		NextReconnectAt = FPlatformTime::Seconds() + 2.0;
+		break;
+	case YG_START_GET_FAILED:
+		// The hook opened YouGame's download page instead.
+		bStartGetting = false;
+		StartState.Result = EYouGameStartResult::Offered;
+		break;
+	default:
+		bStartGetting = false;
+		StartState.Result = EYouGameStartResult::Declined;
+		break;
+	}
+	UE_LOG(LogYouGame, Log, TEXT("YouGame background install: stage %d, %d%%"), Stage, StartState.Percent);
+	OnStartState.Broadcast(StartState);
+}
+#endif
+
+void UYouGameSubsystem::RunStartCheck(bool bQuiet, int32 Ask)
 {
 #if YOUGAME_WEB
 	(void)bQuiet;
+	(void)Ask;
 #else
 	const UYouGameSettings* Settings = GetDefault<UYouGameSettings>();
 	if (GIsEditor && !Settings->bStartCheckInEditor)
@@ -221,8 +277,15 @@ void UYouGameSubsystem::RunStartCheck(bool bQuiet)
 		return;
 	}
 	const std::string TrayFrom = ToUtf8(Settings->TrayFromVersion.TrimStartAndEnd());
-	const YouGameStart::FOutcome Outcome = YouGameStart::Run(Slug.c_str(), Settings->bUseStaging, TrayFrom.c_str(), bQuiet);
+	if (Ask < 0)
+	{
+		Ask = Settings->AskWhen == EYouGameAskWhen::OnFirstUse ? YG_START_ASK_LATER : YG_START_ASK_AT_START;
+	}
+	const std::string Name = ToUtf8(Settings->GameName.TrimStartAndEnd());
+	const YouGameStart::FOutcome Outcome = YouGameStart::Run(Slug.c_str(), Settings->bUseStaging, TrayFrom.c_str(), bQuiet, Ask,
+		Name.empty() ? nullptr : Name.c_str());
 	StartState.Version = FromUtf8(Outcome.UpdateVersion);
+	StartState.Percent = -1;
 	switch (Outcome.Result)
 	{
 	case YG_START_RUNNING: StartState.Result = EYouGameStartResult::Running; break;
@@ -232,7 +295,18 @@ void UYouGameSubsystem::RunStartCheck(bool bQuiet)
 	case YG_START_INSTALLED: StartState.Result = EYouGameStartResult::Installed; break;
 	case YG_START_MISSING: StartState.Result = EYouGameStartResult::Missing; break;
 	case YG_START_UPDATING: StartState.Result = EYouGameStartResult::Updating; break;
+	case YG_START_GETTING:
+		StartState.Result = EYouGameStartResult::Installing;
+		// Asked again while it installs: keep the last percent rather than jumping back to 0.
+		StartState.Percent = bStartGetting && GetPercent >= 0 ? GetPercent : 0;
+		break;
 	default: StartState.Result = EYouGameStartResult::Unavailable; break;
+	}
+	if (Outcome.Result == YG_START_GETTING && !bStartGetting)
+	{
+		bStartGetting = true;
+		GetStage = -1;
+		GetPercent = -2;
 	}
 	YouGameStart::FUpdateRetry Retry{StartUpdateUntil, NextStartCheckAt, bStartUpdating};
 	Retry.Observe(Outcome.Result, FPlatformTime::Seconds());
@@ -277,6 +351,7 @@ void UYouGameSubsystem::StartClient(bool bQuiet)
 	Config.game_version = VersionUtf8.c_str();
 	Config.engine = "unreal";
 	Config.feedback_site = Settings->bUseStaging ? "https://staging.yougame.co" : nullptr;
+	Config.staging = Settings->bUseStaging ? 1 : 0;
 	Config.log = &YouGameLogLine;
 	Config.on_ready = &YouGameOnReady;
 	Config.on_push = &YouGameOnPush;
@@ -286,6 +361,11 @@ void UYouGameSubsystem::StartClient(bool bQuiet)
 	GYouGameQuietLogs = bQuiet;
 	// yg_init copies every string it keeps.
 	bClientUp = yg_init(&Config) == 0;
+	// A reconnect starts yougame.h afresh: it hears the game's state again, sent after its hello.
+	if (bClientUp && GameState >= 0)
+	{
+		yg_set_game_state(static_cast<yg_game_state>(YouGameWire::GameStateNative(static_cast<unsigned>(GameState))));
+	}
 #endif
 }
 
@@ -338,6 +418,11 @@ void UYouGameSubsystem::AskWebHello()
 		Self->SignedInFact = Hello.SignedIn;
 		Self->WebPlayerName = FromUtf8(Hello.Name);
 		Self->bWebOnYouGame = Hello.bOnYouGame && Hello.bFeedback;
+		// A state said while the SDK was not answering (its send failed) goes now, as on the desktop.
+		if (Self->GameState >= 0 && Self->WebSentGameState != Self->GameState)
+		{
+			Self->SetGameState(static_cast<EYouGameGameState>(Self->GameState));
+		}
 		Self->OnPlayerChanged.Broadcast(Self->IsSignedIn());
 	});
 #endif
@@ -433,6 +518,10 @@ bool UYouGameSubsystem::HandleTick(float /*DeltaTime*/)
 		DrainWeb();
 	}
 #else
+	if (bOwner && bStartGetting)
+	{
+		PollGetYouGame();
+	}
 	if (bOwner && bStartUpdating)
 	{
 		YouGameStart::FUpdateRetry Retry{StartUpdateUntil, NextStartCheckAt, bStartUpdating};
@@ -751,4 +840,38 @@ void UYouGameSubsystem::MenuButton(EYouGameInputKind Kind)
 {
 	const std::string Json = YouGameWire::InputKindBody(static_cast<unsigned>(Kind));
 	if (!Json.empty()) Call(FString(YouGameWire::Type::MenuButton), UTF8_TO_TCHAR(Json.c_str()), [](const FYouGameReply&) {});
+}
+
+void UYouGameSubsystem::SetGameState(EYouGameGameState State)
+{
+	const unsigned Value = static_cast<unsigned>(State);
+	const std::string Json = YouGameWire::GameStateBody(Value);
+	if (Json.empty())
+	{
+		return;
+	}
+	GameState = static_cast<int32>(Value);
+	if (!bOwner || !bClientUp)
+	{
+		return; // kept: StartClient (desktop) sends it once yougame.h starts
+	}
+#if YOUGAME_WEB
+	// The page's SDK keeps the state for the page; only changes go to it.
+	if (WebSentGameState == GameState)
+	{
+		return;
+	}
+	WebSentGameState = GameState;
+	const TWeakObjectPtr<UYouGameSubsystem> WeakThis(this);
+	const int32 Sent = GameState;
+	Call(FString(YouGameWire::Type::GameState), UTF8_TO_TCHAR(Json.c_str()), [WeakThis, Sent](const FYouGameReply& Reply)
+	{
+		// Not taken (the SDK not loaded, or one without setGameState): the next call tries again.
+		UYouGameSubsystem* Self = WeakThis.Get();
+		if (Self && !Reply.bOk && Self->WebSentGameState == Sent) Self->WebSentGameState = -1;
+	});
+#else
+	// yougame.h sends only changes, after hello, and again on each new connection.
+	yg_set_game_state(static_cast<yg_game_state>(YouGameWire::GameStateNative(Value)));
+#endif
 }

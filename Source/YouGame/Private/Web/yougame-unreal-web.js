@@ -421,6 +421,16 @@
       return Promise.resolve(room.showLobby()).then(function () { return ok({ opened: true, where: "overlay" }); });
     },
 
+    // Set Game State {state}: playing, paused or menu, for YouGame's button over the game (sdk.md
+    // setGameState). A page whose SDK has no setGameState yet answers notAvailable.
+    gameState: function (sdk, body) {
+      var state = body.state;
+      if (state !== "playing" && state !== "paused" && state !== "menu") return fail("badRequest", "Game state is playing, paused or menu.");
+      if (typeof sdk.setGameState !== "function") return fail("notAvailable", "This page's YouGame SDK has no game state yet.");
+      sdk.setGameState(state);
+      return ok({ state: state });
+    },
+
     // Set Match State (true) is the game's Start: the host begins the match (sdk.md beginMatch),
     // which every player hears as On Room Players with Playing set, and which Report Match Result needs.
     matchState: function (sdk, body) {

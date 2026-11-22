@@ -75,6 +75,13 @@ enum {
   YG_REASON_NOT_AVAILABLE = 8  /* no YouGame answered and no feedback page could open */
 };
 
+/* yg_set_game_state's state: what the game is doing now, for YouGame's button over it. */
+typedef enum yg_game_state {
+  YG_GAME_PLAYING = 1, /* in play: the button keeps out of the way */
+  YG_GAME_PAUSED = 2,  /* the game's own pause: the button shows (controllers, settings, friends) */
+  YG_GAME_MENU = 3     /* a main menu or another menu outside play: the button shows */
+} yg_game_state;
+
 /* yg_config.log's level. */
 enum { YG_LOG_INFO = 0, YG_LOG_WARN = 1 };
 
@@ -167,7 +174,7 @@ typedef struct yg_config {
   const char *game_slug;
   const char *game_version;  /* the build's version, told to an app found on the local channel */
   const char *engine;        /* a short label for hello's "engine"; NULL: "native" */
-  const char *feedback_site; /* where the feedback page opens; NULL: https://yougame.co */
+  const char *feedback_site; /* where the feedback page opens; NULL: https://yougame.co (staging: https://staging.yougame.co) */
   void *user;                /* passed to every callback below */
   /* One line, without secrets, names, drafts or answers. NULL: written to stderr. */
   void (*log)(void *user, int level, const char *message);
@@ -185,6 +192,12 @@ typedef struct yg_config {
    * and yg_hello_json() say who. At most once per connection to YouGame; never for a player hello
    * already named (on_ready covers that). */
   void (*on_player)(void *user);
+  /* Which YouGame this build talks to. 0 (the default, also when the field is left out): production,
+   * yougame.co and the YouGame app. 1: staging, staging.yougame.co and the YouGame Staging app, for a
+   * test listing on staging. A copy started on its own looks only for that app's local channel, and
+   * feedback_site defaults to that site. A copy the app starts uses that app's site, whatever this says.
+   * Set yg_start_options.staging (yougame_start.h) to the same value. */
+  int staging;
 } yg_config;
 
 /* Picks the channel from the environment and says hello. 0 ok, -1 already started. Lines it logs
@@ -217,6 +230,23 @@ long long yg_open_menu(yg_callback cb, void *user);
  * Best effort: older apps answer notYet; keep the game's own menu if result.opened is false. */
 long long yg_set_input_kind(const char *kind, yg_callback cb, void *user);
 long long yg_menu_button(const char *kind, yg_callback cb, void *user);
+/* Report each change of the game's state (not every frame): playing, paused or in a menu, so the
+ * app's overlay can keep YouGame's button out of play and show it on pause and in menus (an app
+ * that does not follow it yet keeps the button's usual fade). Fire-and-forget, no callback: the
+ * answer is ignored. Sent only when the state changed; called before YouGame answers (or while it
+ * is away), the latest state goes once hello is answered, and again on every new connection. Kept
+ * until yg_shutdown: after a new yg_init, say it again. 1 sent now, 0 kept for later or unchanged,
+ * -1 not a state or before yg_init. */
+int yg_set_game_state(yg_game_state state);
+/* Optional, for a game that runs from the player's own disc image (an emulator, a port that reads the
+ * disc): the disc file's absolute path, once the game has loaded it, so YouGame can link that same
+ * copy for the game's page and the player need not pick it again. Only a game started on its own
+ * sends it (the app knows the disc of a game it starts); like yg_set_game_state it is fire-and-forget,
+ * kept until hello is answered, sent again on every new connection, and kept until yg_shutdown. The
+ * path is UTF-8, absolute ("C:\...", "/..."), at most 1024 bytes, with no control characters; a
+ * network path ("\\server\...") is refused. YouGame checks the file against the listing's dumps
+ * before it links it. 1 sent now, 0 kept for later or unchanged, -1 not a path or before yg_init. */
+int yg_report_disc(const char *path);
 /* Any other wire type in sdk.md "Native builds" (saveFileList, entitlements, ...). body_json is a
  * JSON object or NULL; timeout_seconds <= 0 means 15. */
 long long yg_call(const char *type, const char *body_json, double timeout_seconds, yg_callback cb,
@@ -345,6 +375,13 @@ extern "C" {
 #define YG__TIMEOUT 15.0
 #define YG__LOCAL_HELLO_TIMEOUT 6.0 /* contract section 1: no hello answer in 6 s is no host */
 #define YG__PROBE_COOLDOWN 5.0      /* contract section 1.3 */
+/* When a look finds no app (the game started first, then the player installed or opened YouGame)
+ * or the app ends a connection (an update restarting it, the player quitting and opening it
+ * again), the game looks again on its own, every 5 s for 5 minutes, so it connects without waiting
+ * for its next call. After that it looks on calls only, and the next call that finds nothing starts
+ * another 5 minutes. */
+#define YG__RELOOK_EVERY 5.0
+#define YG__RELOOK_FOR 300.0
 /* Player pending (contract section 4; desktop/src/local-channel.ts "PLAYER PENDING"): after a hello
  * answered playerPending, hello is asked again about 2 s and about 6 s later, unless the player came
  * first (in an answer or the playerArrived push). */
@@ -361,6 +398,7 @@ extern "C" {
 #define YG__PIPE_BUSY_WAIT_MS 200
 #define YG__READ_WAIT_MS 250
 #define YG__DEFAULT_SITE "https://yougame.co"
+#define YG__STAGING_SITE "https://staging.yougame.co"
 
 #ifdef YOUGAME_TESTING
 /* Test hooks: the test file sets these. Never defined in a game build. */
@@ -368,6 +406,7 @@ static const char *yg__test_socket_root = NULL; /* replaces "/tmp" in the Mac so
 static int (*yg__test_open_url)(const char *url) = NULL;
 static double yg__test_local_hello_timeout = 0.0;
 static double yg__test_probe_cooldown = -1.0;
+static double yg__test_relook_every = -1.0; /* replaces YG__RELOOK_EVERY when set */
 static size_t yg__test_outbox_max = 0;
 static double yg__test_player_retry[2] = {0.0, 0.0}; /* replaces YG__PLAYER_RETRY_1 and _2 when set */
 #endif
@@ -1326,7 +1365,7 @@ enum {
   YG__EV_REPLY,    /* a failure made here, for call id */
   YG__EV_CLOSED,   /* stdin ended: nothing will answer again */
   YG__EV_UP,       /* the local channel connected for look id */
-  YG__EV_DOWN,     /* look id found nothing, or its connection ended */
+  YG__EV_DOWN,     /* look id found nothing (ok 1: no app channel to open), or its connection ended */
   YG__EV_BROWSER,  /* the feedback page opener for call id finished; ok */
   YG__EV_LOG       /* a log line from the thread (text is a literal) */
 };
@@ -1375,10 +1414,20 @@ static struct {
   long long next_id, local_gen;
   int local_state, hello_sent, hello_done, ready, closed, quit_requested, name_shared, feedback_unsupported;
   double last_probe_at;
+  /* Looking again on its own (YG__RELOOK_EVERY) after a look found no app channel or the app ended a
+   * connection, until relook_until. */
+  int relook;
+  double relook_until;
   /* Who the player is (yg_player_status); on this connection: the game was told a player, how many
    * pending re-asks of hello went out, and when the first pending answer came. */
   int player_state, player_told, player_retries;
   double pending_at;
+  /* yg_set_game_state: the game's latest state (0: never said), and the one sent on this
+   * connection (0: none yet; every new hello starts again). */
+  int game_state, game_state_sent;
+  /* yg_report_disc: the disc file's path (NULL: never said), and whether this connection heard it. */
+  char *disc_path;
+  int disc_sent;
   char *player_id, *player_name, *game_id, *hello_json;
   /* The longest line this connection's app takes: YG__LOCAL_LINE_OLD until its hello names a
    * larger `lineMax` (never above YG__LOCAL_LINE_MAX); back to it on every new look. */
@@ -2172,7 +2221,7 @@ static void *yg__local_main(void *arg)
 #endif
 {
   long long handled = 0, wanted;
-  int stop, pass;
+  int stop, pass, said_none = 0;
   yg__conn c;
   (void)arg;
   for (;;) {
@@ -2189,13 +2238,22 @@ static void *yg__local_main(void *arg)
     }
     handled = wanted;
     memset(&c, 0, sizeof c);
-    /* Production first, then staging (contract section 1). */
-    for (pass = 0; pass < 2; ++pass) {
-      if (yg__conn_open(pass, &c)) {
+    /* Only the app of this build's YouGame (config.staging; contract section 1): a production game
+     * never talks to the staging app, nor a staging game to the production one. */
+    pass = yg__g.cfg.staging ? 1 : 0;
+    if (yg__conn_open(pass, &c)) {
+      yg__post(YG__EV_LOG, 0, 0, NULL,
+               pass ? "YouGame: found the YouGame app's local channel (staging)"
+                    : "YouGame: found the YouGame app's local channel (production)");
+    } else {
+      pass = 2;
+      /* Said once per run: which app it looked for, so a production build next to only the staging app
+       * (or the reverse) is plain in the log. */
+      if (!said_none) {
+        said_none = 1;
         yg__post(YG__EV_LOG, 0, 0, NULL,
-                 pass ? "YouGame: found the YouGame app's local channel (staging)"
-                      : "YouGame: found the YouGame app's local channel (production)");
-        break;
+                 yg__g.cfg.staging ? "YouGame: no YouGame Staging app open (this build is set to staging)"
+                                   : "YouGame: no YouGame app open (this build is set to production)");
       }
     }
     if (yg__stopping()) {
@@ -2203,7 +2261,7 @@ static void *yg__local_main(void *arg)
       break;
     }
     if (pass == 2) {
-      yg__post(YG__EV_DOWN, wanted, 0, NULL, NULL);
+      yg__post(YG__EV_DOWN, wanted, 1, NULL, NULL); /* no app channel at all */
       continue;
     }
     yg__post(YG__EV_UP, wanted, 0, NULL, NULL);
@@ -2799,6 +2857,8 @@ static long long yg__refuse(const char *type, const char *error, yg_callback cb,
 
 static void yg__send_hello(void);
 static void yg__complete(yg__call *c, const yg__reply *r, int browser);
+static int yg__game_state_flush(void);
+static int yg__disc_flush(void);
 
 static void yg__flush_held(void) {
   yg__call *c;
@@ -2938,6 +2998,7 @@ static void yg__handle_hello(const yg__reply *r, long long gen) {
       yg__log(YG_LOG_INFO, "YouGame: the local channel did not answer hello (%s); running without YouGame",
               *r->code ? r->code : "no code");
       yg__g.local_state = YG__IDLE;
+      yg__g.relook = 0; /* an app that refuses this game: no more looks on its own */
       yg__g.hello_sent = yg__g.hello_done = 0;
       yg__lock();
       yg__g.drop_wanted = 1;
@@ -2947,6 +3008,7 @@ static void yg__handle_hello(const yg__reply *r, long long gen) {
       return;
     }
     yg__g.local_state = YG__CONNECTED;
+    yg__g.relook = 0;
     yg__log(YG_LOG_INFO, "YouGame: connected to the YouGame app (the game was started on its own)%s", NULL);
   }
   yg__g.hello_done = 1;
@@ -2972,6 +3034,10 @@ static void yg__handle_hello(const yg__reply *r, long long gen) {
     yg__g.ready = 1;
   }
   yg__flush_held();
+  yg__g.game_state_sent = 0; /* a new connection hears the latest state once */
+  yg__game_state_flush();
+  yg__g.disc_sent = 0; /* and the disc once */
+  yg__disc_flush();
   if (yg__g.ready && r->ok && yg__g.cfg.on_ready) yg__g.cfg.on_ready(yg__g.cfg.user);
 }
 
@@ -3171,11 +3237,23 @@ static void yg__handle_event(yg__event *e) {
         yg__g.player_state = YG_PLAYER_UNKNOWN;
         yg__g.player_told = yg__g.player_retries = 0;
         if (was_connected) {
-          /* As stdio's end closing: what was asked fails; the next call looks again. */
+          /* As stdio's end closing: what was asked fails; the next call looks again, and so does
+           * yg_update on its own for a while (yg__relook_tick). */
+          yg__g.relook = 1;
+          yg__g.relook_until = yg__now() + YG__RELOOK_FOR;
           yg__log(YG_LOG_INFO, "YouGame: the YouGame app closed the local channel%s", NULL);
           yg__fail_with("noAnswer", "YouGame closed the channel", 1);
         } else {
-          /* Nothing found: the calls that waited for this look answer "not available". */
+          /* Nothing found: the calls that waited for this look answer "not available". When no
+           * app channel was there at all (e->ok), yg_update keeps looking on its own for a while:
+           * a game started before the app (the start window's Get, or the player opening YouGame
+           * by hand) finds it with no call. An app that opened the channel and then dropped it
+           * unanswered (it refused this program, or was full) is not looked at again on its own.
+           * A look that fails while already looking never stretches the window. */
+          if (e->ok && !yg__g.relook) {
+            yg__g.relook = 1;
+            yg__g.relook_until = yg__now() + YG__RELOOK_FOR;
+          }
           yg__fail_with("notAvailable", "not available", 0);
         }
       }
@@ -3257,6 +3335,7 @@ int yg_init(const yg_config *config) {
       yg__g.engine[n++] = config->engine[i];
   if (!n) strcpy(yg__g.engine, "native");
   yg__copy_trimmed(yg__g.site, sizeof yg__g.site, config ? config->feedback_site : NULL);
+  if (!yg__g.site[0] && yg__g.cfg.staging) strcpy(yg__g.site, YG__STAGING_SITE);
   /* The strings in the copy of config belong to the game; only the copies above are used. */
   yg__g.cfg.game_slug = yg__g.cfg.game_version = yg__g.cfg.engine = yg__g.cfg.feedback_site = NULL;
 #ifdef _WIN32
@@ -3415,8 +3494,26 @@ void yg_shutdown(void) {
   free(yg__g.player_name);
   free(yg__g.game_id);
   free(yg__g.hello_json);
-  yg__g.player_id = yg__g.player_name = yg__g.game_id = yg__g.hello_json = NULL;
+  free(yg__g.disc_path);
+  yg__g.player_id = yg__g.player_name = yg__g.game_id = yg__g.hello_json = yg__g.disc_path = NULL;
   yg__g.thread_up = 0;
+}
+
+/* Started on its own, and a look found nothing or the app ended the connection: look again every
+ * YG__RELOOK_EVERY s until it answers or YG__RELOOK_FOR s have passed (then the next call looks). */
+static void yg__relook_tick(void) {
+  double every = YG__RELOOK_EVERY, now;
+#ifdef YOUGAME_TESTING
+  if (yg__test_relook_every >= 0) every = yg__test_relook_every;
+#endif
+  if (!yg__g.relook || yg__g.transport != YG_TRANSPORT_LOCAL || yg__g.local_state != YG__IDLE || yg__g.closed)
+    return;
+  now = yg__now();
+  if (now > yg__g.relook_until) {
+    yg__g.relook = 0;
+    return;
+  }
+  if (now - yg__g.last_probe_at >= every) yg__start_probe();
 }
 
 void yg_update(void) {
@@ -3448,6 +3545,7 @@ void yg_update(void) {
   }
   if (!yg__g.shutdown_wanted) yg__expire();
   if (!yg__g.shutdown_wanted) yg__player_tick();
+  if (!yg__g.shutdown_wanted) yg__relook_tick();
   yg__g.in_update = 0;
   if (yg__g.shutdown_wanted) {
     yg__g.shutdown_wanted = 0;
@@ -3560,6 +3658,94 @@ static long long yg__input_event(const char *type, const char *kind, yg_callback
 }
 long long yg_set_input_kind(const char *kind, yg_callback cb, void *user) { return yg__input_event("inputKind", kind, cb, user); }
 long long yg_menu_button(const char *kind, yg_callback cb, void *user) { return yg__input_event("menuButton", kind, cb, user); }
+
+/* The latest game state to the app, when this connection has not heard it yet. Only once hello
+ * answered: a held line would be dropped with hello's failure, and the next hello sends it anyway. */
+static int yg__game_state_flush(void) {
+  yg__buf extra = {NULL, 0, 0, 0};
+  yg__span none = {NULL, 0};
+  int s = yg__g.game_state;
+  if (!s || s == yg__g.game_state_sent || !yg__g.hello_done || yg__g.closed) return 0;
+  if (yg__g.transport == YG_TRANSPORT_NONE) return 0;
+  if (yg__g.transport == YG_TRANSPORT_LOCAL && yg__g.local_state != YG__CONNECTED) return 0;
+  yg__buf_puts(&extra, s == YG_GAME_PAUSED ? ",\"state\":\"paused\"" : s == YG_GAME_MENU ? ",\"state\":\"menu\"" : ",\"state\":\"playing\"");
+  if (!yg__call_start("gameState", none, &extra, YG__TIMEOUT, NULL, NULL, 0)) {
+    yg__buf_free(&extra); /* out of memory: the next call or hello tries again */
+    return 0;
+  }
+  yg__buf_free(&extra);
+  yg__g.game_state_sent = s;
+  return 1;
+}
+
+int yg_set_game_state(yg_game_state state) {
+  int s = (int)state;
+  if (!yg__g.inited || (s != YG_GAME_PLAYING && s != YG_GAME_PAUSED && s != YG_GAME_MENU)) return -1;
+  yg__g.game_state = s;
+  if (yg__g.transport == YG_TRANSPORT_LOCAL && yg__g.local_state == YG__IDLE && !yg__g.closed) {
+    /* Started on its own and not connected: look again like any call (at most once every 5 s,
+     * contract section 1.3); the state goes after that look's hello. */
+    double cooldown = YG__PROBE_COOLDOWN;
+#ifdef YOUGAME_TESTING
+    if (yg__test_probe_cooldown >= 0) cooldown = yg__test_probe_cooldown;
+#endif
+    if (yg__now() - yg__g.last_probe_at >= cooldown) yg__start_probe();
+    return 0;
+  }
+  return yg__game_state_flush();
+}
+
+/* The disc's path to the app, when this connection has not heard it yet: the local channel only (a
+ * game the app starts runs the disc the app gave it), and only once hello answered. */
+static int yg__disc_flush(void) {
+  yg__buf extra = {NULL, 0, 0, 0};
+  yg__span none = {NULL, 0};
+  if (!yg__g.disc_path || yg__g.disc_sent || !yg__g.hello_done || yg__g.closed) return 0;
+  if (yg__g.transport != YG_TRANSPORT_LOCAL || yg__g.local_state != YG__CONNECTED) return 0;
+  yg__buf_puts(&extra, ",\"path\":");
+  yg__json_str(&extra, yg__g.disc_path, strlen(yg__g.disc_path));
+  if (extra.failed || !yg__call_start("disc", none, &extra, YG__TIMEOUT, NULL, NULL, 0)) {
+    yg__buf_free(&extra); /* out of memory: the next hello tries again */
+    return 0;
+  }
+  yg__buf_free(&extra);
+  yg__g.disc_sent = 1;
+  return 1;
+}
+
+/* desktop/src/disc-hints.ts discPathOk: absolute, no control characters, no UNC or device path. */
+static int yg__disc_path_ok(const char *p) {
+  size_t i, n;
+  if (!p) return 0;
+  n = strlen(p);
+  if (n == 0 || n > 1024) return 0;
+  for (i = 0; i < n; i++)
+    if ((unsigned char)p[i] < 0x20 || (unsigned char)p[i] == 0x7f) return 0;
+  if ((p[0] == '\\' || p[0] == '/') && (p[1] == '\\' || p[1] == '/')) return 0;
+  if (p[0] == '/') return 1;
+  return ((p[0] >= 'A' && p[0] <= 'Z') || (p[0] >= 'a' && p[0] <= 'z')) && p[1] == ':' && (p[2] == '\\' || p[2] == '/');
+}
+
+int yg_report_disc(const char *path) {
+  char *copy;
+  if (!yg__g.inited || !yg__disc_path_ok(path)) return -1;
+  if (yg__g.disc_path && !strcmp(yg__g.disc_path, path)) return 0;
+  copy = yg__strndup(path, strlen(path));
+  if (!copy) return 0;
+  free(yg__g.disc_path);
+  yg__g.disc_path = copy;
+  yg__g.disc_sent = 0;
+  if (yg__g.transport == YG_TRANSPORT_LOCAL && yg__g.local_state == YG__IDLE && !yg__g.closed) {
+    /* Not connected: look again like any call (at most once every 5 s); the disc goes after hello. */
+    double cooldown = YG__PROBE_COOLDOWN;
+#ifdef YOUGAME_TESTING
+    if (yg__test_probe_cooldown >= 0) cooldown = yg__test_probe_cooldown;
+#endif
+    if (yg__now() - yg__g.last_probe_at >= cooldown) yg__start_probe();
+    return 0;
+  }
+  return yg__disc_flush();
+}
 
 long long yg_open_feedback(int kind, const char *draft_text, yg_callback cb, void *user) {
   yg__buf draft = {NULL, 0, 0, 0}, extra = {NULL, 0, 0, 0};

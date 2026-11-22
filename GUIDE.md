@@ -6,12 +6,6 @@ the players in a YouGame room and **Room Send** passes your game's messages betw
 server for you to build or run. That is the path most games take, and it comes first below.
 Windows desktop builds, played through the YouGame app, follow after it.
 
-**Checked by our agents (11-15):** a packaged Shipping Third Person web game with the plugin and its
-example, uploaded to staging, signs in in two Chrome windows, and Find Match puts both players in one
-room where each sees the other move (Room Send), and score, leaderboard and feedback answer. A
-230 MB zip of that build dropped on the upload page's Web game tab published and played.
-**Not checked yet:** Safari and Firefox, phones.
-
 ## Browser builds (Unreal 5.9 web)
 
 ### Make a browser game, step by step
@@ -24,7 +18,7 @@ room where each sees the other move (Room Send), and score, leaderboard and feed
    checks Visual Studio's C++ tools and the engine's web platform, installs Emscripten **6.0.10**
    (Unreal 5.9 needs exactly that version and does not bundle it) into `%LOCALAPPDATA%\emsdk`, sets
    `WASM_EMSDK_ROOT`, and runs Unreal's own SDK check. It names each missing piece and its fix;
-   `SetupWeb.bat -Check` only reports (**not run on a fresh PC yet**). Then **restart the editor**: it reads environment variables
+   `SetupWeb.bat -Check` only reports. Then **restart the editor**: it reads environment variables
    only at start-up. **Platforms > Wasm** in the editor shows the SDK status too. By hand instead:
    clone `emsdk`, run `emsdk install 6.0.10` and `emsdk activate 6.0.10`, set `WASM_EMSDK_ROOT` to
    that folder (it wins over a stale `EMSDK`).
@@ -68,10 +62,9 @@ room where each sees the other move (Room Send), and score, leaderboard and feed
    there), **X** Clear Save; **U** Sign In. In a room each player sends its position about 10 times a
    second with Room Send, and every other player appears as a copy of your character that moves where
    they move. When a second player joins, the players line up side by side at the start, and a line
-   at the top left says "connected, 2 players". The browser console logs each step as `[yougame-unreal] sample: ...`. Our staging web
-   sample runs it.
-7. Package and zip: double-click `Plugins\YouGame\Extras\PackageWeb.bat` in your project
-   (**run once on our own Windows PC so far**). It finds the project and Unreal 5.9, packages it for Wasm
+   at the top left says "connected, 2 players". The browser console logs each step as `[yougame-unreal] sample: ...`.
+7. Package and zip: double-click `Plugins\YouGame\Extras\PackageWeb.bat` in your project.
+   It finds the project and Unreal 5.9, packages it for Wasm
    (Shipping), adds the `yougame.json` a web build needs on YouGame, and zips the result. You get
    `Saved\YouGameWeb\<Project>-YouGame.zip`, ready to upload; the same build is the folder
    `Saved\YouGameWeb\Wasm`. A Third Person game takes about 35-40 minutes and is about 130 MB.
@@ -98,8 +91,7 @@ room where each sees the other move (Room Send), and score, leaderboard and feed
 
 ### On your own site, and still on YouGame
 
-Hosting it elsewhere works too, with sign-in, Find Match, friend rooms and feedback (checked by our
-agents on staging, 11-15). The page needs cross-origin isolation (COOP same-origin, COEP
+Hosting it elsewhere works too, with sign-in, Find Match, friend rooms and feedback. The page needs cross-origin isolation (COOP same-origin, COEP
 require-corp) and serves a file of about 150 MB, so itch.io, GitHub Pages and plain Cloudflare Pages
 do not fit as they come. The `yougame.json` beside `index.html` (PackageWeb.bat writes it) is
 where you name the game and yourself to claim its listing, below.
@@ -177,6 +169,7 @@ results include **Reply**, with **Code**, **Error** and **Retry After Seconds** 
 | Hear that the picker never appeared             | **On Invite Not Shown**                           | `inviteNotShown` push                                        |
 | Hear a friend's room to join                    | **On Friend Room** (Room, Players, Mode)          | `friendRoom {room,players,mode?}` push                       |
 | Keep YouGame's button out of a match            | **Set Match State** (Open)                        | `matchState {open:true/false}`                               |
+| Keep YouGame's button out of play               | **Set Game State** (Playing, Paused, Menu)        | `gameState {state}`; browser builds: `YouGame.setGameState`  |
 | Report the result                               | **Report Match Result** (Outcome, Score)          | `mpResult {won:true/false/"draw",score}`                     |
 | Show update progress                            | **Get Update State**, **On Update State**         | hello `update`, `updateChanged` push                         |
 | Read the startup outcome                        | **Get Start State**, **On Start State**           | local start hook; no channel request                         |
@@ -193,8 +186,8 @@ can contain private data.
 
 Leave Provider empty, or use `apple`, `google`, `x`, `discord` or `github`. Without a provider the
 browser fallback defaults to Google; an overlay may offer its own choice. **On Success** says only
-that a surface opened: Result has **Opened**, **Where** (`Overlay`, `Browser`, or `Unknown` for an
-older app), and Reply. Wait for **On Signed In** to know it finished; the plugin reconnects to get
+that a surface opened: Result has **Opened**, **Where** (`Overlay`, `Browser`, `Window` for YouGame
+Online's own sign-in window, or `Unknown` for an older app), and Reply. Wait for **On Signed In** to know it finished; the plugin reconnects to get
 player facts automatically. **On Player Changed** reports those facts. Show "Player" when **Get
 Player Name** is empty.
 
@@ -277,10 +270,16 @@ State**. Results mean:
 | Running             | YouGame's local channel is up                                                                 |
 | Opened              | Windows started YouGame hidden in the tray; the plugin looks for its channel                  |
 | Offered             | The player chose Get YouGame; the download page opened                                        |
-| Declined            | The player chose Not now, closed the offer, or no offer could be shown                        |
+| Declined            | The player chose Play offline, closed the offer, or no offer could be shown                   |
 | Installed / Missing | A quiet check found YouGame installed / absent; nothing shown or started                      |
 | Unavailable         | Bad options, unsupported system, hook error or update retry window ended; carry on without it |
 | Updating            | Windows update marker says an install is underway; Version is the target version              |
+| Installing          | Windows: the player chose Get YouGame; it downloads and installs in the background, Percent 0-100 while downloading, -1 while installing |
+
+For Installing, **keep the game running and show a short line such as "Installing YouGame… 42%"** (no percent
+once Percent is -1). The plugin follows the install by itself: when YouGame is installed and started in the tray, On
+Start State sends Opened and the plugin connects; if the install fails it opens YouGame's download page and sends
+Offered. Clear your line on either.
 
 For Updating, **show your own "YouGame is updating" line and call again after about 10 seconds,
 for at most 5 minutes**. The plugin does these quiet retries for you and emits On Start State;
@@ -289,8 +288,26 @@ quietly so an install beginning after hello can also be reported. The initial Wi
 not wait on the app; channel reconnects continue in the background.
 
 The updated hook also has Mac/Linux install detection and its own offer. It cannot start YouGame
-in the tray there and has no update marker there. None of those platform paths has been checked
-inside Unreal.
+in the tray there and has no update marker there.
+
+**When to ask** (Project Settings > Plugins > YouGame > **Ask When**): your game decides when the
+player sees the Get YouGame window.
+
+- **At Start** (default): the check above, before play. Suits a game that needs YouGame to play
+  at all, such as one that uses it for controller support or plays only online.
+- **On First Use**: at start the plugin starts an installed YouGame in the tray if it can, and
+  never shows the window (Start State reads Installed or Missing otherwise). When the player
+  presses Online, Friends or another YouGame button, call **Ask For YouGame**: it starts YouGame
+  if it can, or shows the window, whose **Play offline** goes back to the game. It returns the outcome
+  and also sends On Start State. Suits a game that plays offline with online as one choice.
+
+Set **Game Name** (same page) to the name the window prints: "Play <Game Name> online". Empty, it
+says "this game". With At Start, a player who presses Play offline once is not asked at start again;
+the game asks at its YouGame button from then on, so call Ask For YouGame there either way.
+
+Ask For YouGame waits while the window is up (as the start check does), and does nothing in a
+browser build, in a game the app started, or in the editor unless Start Check In Editor is on.
+After Running or Opened, go online as usual; after Declined or Offered, stay in your menu.
 
 ## Failure codes
 
@@ -305,7 +322,7 @@ inside Unreal.
 | `noFriendRoom`             | Make or join a room before inviting (also after reconnect).                                                                                                                                                                                                            |
 | `inviteNotShown`           | The overlay could not show the friend picker. Also a later push/event.                                                                                                                                                                                                 |
 | `friends_held`             | YouGame refused the friends action; show Error.                                                                                                                                                                                                                        |
-| `unknown_build`            | Use the latest version of the game published on YouGame.                                                                                                                                                                                                               |
+| `unknown_build`            | YouGame doesn't recognise this copy (a local or changed build never is): get the game from YouGame.                                                                                                                                                                    |
 | `old_build`                | Use the latest version; preserve Error's score/save/online explanation.                                                                                                                                                                                                |
 | `room_full`, `not_invited` | The ticket/join was refused; show Error and let the player choose another room.                                                                                                                                                                                        |
 | `notHere`                  | Copy not checked yet, or its answer page unavailable; retry after the supplied delay.                                                                                                                                                                                  |
@@ -331,15 +348,10 @@ app on the player's computer. On the desktop, **your game still connects to its 
 and implements online play**: a ticket alone does not play a match, and Room Send answers
 `notAvailable` there for now.
 
-**Checked:** the plugin compiles in Unreal 5.8.4 on Windows (BuildPlugin, no warnings), and a
-packaged Development and Shipping game with it loads it and runs. **Calls through the app: not
-checked yet** (sign-in, scores, saves, matches), nor the Mac and Linux paths or other engine
-versions.
-
 ### Add it
 
 1. Put the plugin in your project's `Plugins/YouGame` folder (clone github.com/yougame-co/yougame-unreal
-   there, or unzip the zip into `Plugins/`). Checked on Unreal 5.8.4.
+   there, or unzip the zip into `Plugins/`). Unreal 5.8.4 on Windows.
    **The project needs C++ code.** A Blueprint-only project packages Unreal's stock `UnrealGame.exe`,
    and the plugin never loads (the log says `Plugin 'YouGame' failed to load because module 'YouGame'
 could not be found`). In a Blueprint-only project, add one C++ class first (Tools > New C++
@@ -363,8 +375,9 @@ the player to open the YouGame app or the tray. Use **Sign In**, **Invite Friend
 when the player chooses those actions; YouGame owns their surfaces.
 
 On Windows the start check leaves a running YouGame alone, starts an installed, sufficiently new
-signed YouGame hidden in the tray, or shows YouGame's own small **Get YouGame / Not now** offer.
-The game continues whichever the player picks. While YouGame installs an update, the hook shows
+signed YouGame hidden in the tray, or shows YouGame's own small **Get YouGame / Play offline** offer.
+The game continues whichever the player picks: Get YouGame closes the offer at once and installs YouGame in the
+background (Start State Installing). While YouGame installs an update, the hook shows
 nothing; your game can show its own short update line (see Start check below).
 
 ### Check your packaged game on staging
@@ -380,20 +393,22 @@ nothing; your game can show its own short update line (see Start check below).
 4. Inspect `Saved/Logs/<project>.log`: `LogYouGame` reports request types and refusal codes, never
    room codes or tickets. Shipping builds may omit these logs.
 
-A self-started game gets account calls, scores, saves and friend rooms only on the app's checked
-Windows channel with the match-ticket switch enabled (staging in the specified source snapshot).
-Mac/Linux's unchecked channel answers hello, sign-in and feedback; account calls answer `notYet`.
-A game the app starts uses stdin/stdout; Mac/Linux packages also need `yougame-native.json` beside
-the entry for that transport. `mpResult` still answers `notYet` for a self-started game in this
-snapshot. `friends_held` is passed through if returned; the channel adds no special handling for it.
+A self-started game gets account calls, scores, saves and friend rooms only on Windows, and only
+where the app's match-ticket switch is on (staging for now). On Mac and Linux it answers hello,
+sign-in and feedback; account calls answer `notYet`. A game the app starts uses stdin/stdout; Mac/Linux
+packages also need `yougame-native.json` beside the entry for that transport. `mpResult` answers
+`notYet` for a self-started game for now. `friends_held` is passed through if returned.
 
-The plain C++ checks run with `sh engines/unreal/tests/run-tests.sh`: C++17, warnings as errors,
-request/answer/push fixtures from the app tests, the start-hook seam, header-copy checks, and a
-MinGW Windows compile when installed. They do **not** check Unreal Header Tool, Blueprint pins,
-the overlay, or a real multiplayer connection, and the plugin has no Unreal automation tests yet.
-Compiling and packaging were checked separately in Unreal 5.8.4 on Windows (see the start of this section).
+### The YouGame button and the game's state
 
-#### Controller hints over a self-started game
+Call the subsystem's **Set Game State** at each change: Playing when play starts, Paused on the
+game's own pause, Menu on a main menu. YouGame uses it to keep its button out of the way in play and
+show it on pause and in menus; until the app and site follow it, and for a game that never calls it,
+the button keeps its usual fade. Desktop builds send it through yougame.h (`yg_set_game_state`); the
+plugin sends it again after each reconnect. Browser builds call the page's `YouGame.setGameState`,
+again once the SDK answers if the first send failed. Fire-and-forget: older apps and SDKs ignore it.
+
+### Controller hints over a self-started game
 
 Call the subsystem's `Set Input Kind` from your game's existing input events when the input changes
 (Keys, PlayStation, Gamepad, GameCube). Call `Menu Button` once on its PS/Home press or GameCube

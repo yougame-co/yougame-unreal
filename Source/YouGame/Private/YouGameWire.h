@@ -61,6 +61,7 @@ inline constexpr const char* InviteFriend = "mpInvite";
 inline constexpr const char* MatchState = "matchState";
 inline constexpr const char* InputKind = "inputKind";
 inline constexpr const char* MenuButton = "menuButton";
+inline constexpr const char* GameState = "gameState";
 // Browser builds only (YouGameWeb.cpp): the player facts the desktop's hello carries, and room
 // traffic through the page's SDK. On the desktop Room Send answers notAvailable for now.
 inline constexpr const char* Hello = "hello";
@@ -146,6 +147,20 @@ inline std::string InputKindBody(unsigned Kind)
 {
   static constexpr const char* Names[] = {"keys", "ps", "pad", "gc"};
   return Kind < 4 ? std::string("{\"kind\":\"") + Names[Kind] + "\"}" : "";
+}
+
+// EYouGameGameState's order (Playing, Paused, Menu); invalid enum values never become wire data.
+inline std::string GameStateBody(unsigned State)
+{
+	static constexpr const char* Names[] = {"playing", "paused", "menu"};
+	return State < 3 ? std::string("{\"state\":\"") + Names[State] + "\"}" : "";
+}
+
+// The same order as yougame.h's yg_game_state; 0 for an invalid value (yg_set_game_state refuses it).
+inline int GameStateNative(unsigned State)
+{
+	static constexpr int States[] = {YG_GAME_PLAYING, YG_GAME_PAUSED, YG_GAME_MENU};
+	return State < 3 ? States[State] : 0;
 }
 
 inline std::string MatchStateBody(bool bOpen)
@@ -358,7 +373,8 @@ inline FUpdate ReadUpdate(const char* Json)
 	return Out;
 }
 
-// signIn and mpInvite answer {opened:true, where:"overlay"|"browser"}. Older apps omit where.
+// signIn and mpInvite answer {opened:true, where:"overlay"|"browser"|"window"} ("window": YouGame Online's own
+// sign-in window). Older apps omit where.
 struct FOpened
 {
 	bool bOpened = false;

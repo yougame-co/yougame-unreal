@@ -14,6 +14,18 @@ enum class EYouGameInputKind : uint8
 	GameCube
 };
 
+/** What the game is doing now, for YouGame's button over it (Set Game State). */
+UENUM(BlueprintType)
+enum class EYouGameGameState : uint8
+{
+	/** In play: the button keeps out of the way. */
+	Playing,
+	/** The game's own pause: the button shows (controllers, settings, friends). */
+	Paused,
+	/** A main menu or another menu outside play: the button shows. */
+	Menu
+};
+
 /** Every call's answer. On failure, Code is the reason (YouGame's own code or one of the plugin's) and Error is YouGame's sentence. */
 USTRUCT(BlueprintType)
 struct YOUGAME_API FYouGameReply
@@ -26,8 +38,9 @@ struct YOUGAME_API FYouGameReply
 	/**
 	 * Set when bOk is false: notAvailable (no YouGame answered), notYet (this YouGame does not do that
 	 * call yet), noAnswer (nothing answered in time: try later), busy (try again after
-	 * RetryAfterSeconds), signedOut, unknown_build or old_build (the player needs the latest version of
-	 * the game from YouGame), bad_request (YouGame could not read the call, e.g. a save over 64 KB),
+	 * RetryAfterSeconds), signedOut, unknown_build (YouGame doesn't recognise this copy: the player gets
+	 * the game from YouGame), old_build (the player needs the latest version of the game from YouGame),
+	 * bad_request (YouGame could not read the call, e.g. a save over 64 KB),
 	 * board_off (Get Leaderboard: the game's leaderboard is off), alreadySignedIn, signInFailed,
 	 * badRequest (sign-in provider), noFriendRoom, inviteNotShown, friends_held, notHere,
 	 * accountChanged, room_full, not_invited, tooLong, or YouGame's own code. Save writes/clears
@@ -207,6 +220,8 @@ enum class EYouGameOpenedWhere : uint8
 	Unknown,
 	Overlay,
 	Browser,
+	/** YouGame Online's own sign-in window: email and password there, other providers hand off to the browser. */
+	Window,
 };
 
 USTRUCT(BlueprintType)
@@ -254,6 +269,8 @@ enum class EYouGameStartResult : uint8
 	Missing,
 	Unavailable,
 	Updating,
+	/** Get YouGame was pressed: YouGame downloads and installs in the background while the game runs. Percent is the download's progress. */
+	Installing,
 };
 
 USTRUCT(BlueprintType)
@@ -267,6 +284,10 @@ struct YOUGAME_API FYouGameStartState
 	/** Target version on Updating; empty for all other results. */
 	UPROPERTY(BlueprintReadOnly, Category = "YouGame")
 	FString Version;
+
+	/** On Installing: the download's progress, 0-100, or -1 once it is installing (or for any other result). */
+	UPROPERTY(BlueprintReadOnly, Category = "YouGame")
+	int32 Percent = -1;
 };
 
 /** One player in the room, from On Room Players. Id is the room's id for them (Room Send's To). */

@@ -6,6 +6,17 @@
 #include "Engine/DeveloperSettings.h"
 #include "YouGameSettings.generated.h"
 
+/** When a game started on its own asks the player to get or open YouGame. */
+UENUM()
+enum class EYouGameAskWhen : uint8
+{
+	/** At start: the window shows before play when YouGame is missing or can't start by itself. */
+	AtStart UMETA(DisplayName = "At Start"),
+	/** On first use: start YouGame quietly if it can, never a window at start; call Ask For YouGame
+	 * when the player presses something that needs YouGame. */
+	OnFirstUse UMETA(DisplayName = "On First Use"),
+};
+
 UCLASS(config = Game, defaultconfig, meta = (DisplayName = "YouGame"))
 class YOUGAME_API UYouGameSettings : public UDeveloperSettings
 {
@@ -19,6 +30,13 @@ public:
 	 */
 	UPROPERTY(config, EditAnywhere, Category = "YouGame")
 	FString GameSlug;
+
+	/**
+	 * The game's name in the Get YouGame window ("Play <name> online"). Up to 40 letters, digits,
+	 * spaces and . , ' - : ! & + ( ). Empty or anything else: the window says "this game".
+	 */
+	UPROPERTY(config, EditAnywhere, Category = "YouGame")
+	FString GameName;
 
 	/** Use YouGame's staging app and site (staging.yougame.co): for test builds and jam testing. */
 	UPROPERTY(config, EditAnywhere, Category = "YouGame")
@@ -51,6 +69,15 @@ public:
 	 */
 	UPROPERTY(config, EditAnywhere, Category = "YouGame")
 	bool bStartCheckInEditor = false;
+
+	/**
+	 * When to ask the player to get or open YouGame. At Start suits a game that needs YouGame to play
+	 * at all (controller support, online-only). On First Use suits a game that plays offline: nothing
+	 * shows at start, and the window comes up when the player presses Online, Friends or another
+	 * YouGame button (call Ask For YouGame there).
+	 */
+	UPROPERTY(config, EditAnywhere, Category = "YouGame")
+	EYouGameAskWhen AskWhen = EYouGameAskWhen::AtStart;
 
 	virtual FName GetCategoryName() const override;
 };
