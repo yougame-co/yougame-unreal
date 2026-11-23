@@ -2797,6 +2797,37 @@ static char *yg__encode(long long id, const char *type, yg__span body, const yg_
   return b.p;
 }
 
+#ifdef _WIN32
+/* The asks whose answer opens a YouGame sheet or window over the game (or the browser, for signIn). */
+static int yg__opens_sheet(const char *type) {
+  static const char *const sheets[] = {"openFeedback", "openMenu", "mpInvite", "mpFriend", "friendAction", "signIn",
+                                       "charge"};
+  size_t i;
+  for (i = 0; i < sizeof sheets / sizeof sheets[0]; ++i)
+    if (!strcmp(type, sheets[i])) return 1;
+  return 0;
+}
+
+/* Windows keeps the foreground with the game after the player's own key or pad press, so a YouGame sheet would open
+ * unseen behind it. Sent with one of those asks, this lets YouGame come to the front, so no game has to grant it
+ * itself. Only from the game's thread while it is the foreground; Windows ignores it otherwise. user32 is looked up,
+ * not linked, so MinGW builds keep their link line; a process without it loaded has no window to give up. */
+static void yg__allow_foreground(void) {
+  typedef BOOL(WINAPI * yg__asfw_fn)(DWORD);
+  static yg__asfw_fn asfw = NULL;
+  static int looked = 0;
+  if (!looked) {
+    HMODULE user32 = GetModuleHandleW(L"user32.dll");
+    if (user32) {
+      FARPROC proc = GetProcAddress(user32, "AllowSetForegroundWindow");
+      memcpy(&asfw, &proc, sizeof asfw);
+      looked = 1;
+    }
+  }
+  if (asfw) asfw(ASFW_ANY);
+}
+#endif
+
 /* One call: refuse, look for the app, hold until hello, or send. */
 static long long yg__call_start(const char *type, yg__span body, const yg__buf *extra, double timeout, yg_callback cb,
                                 void *user, int is_hello) {
@@ -2836,6 +2867,9 @@ static long long yg__call_start(const char *type, yg__span body, const yg__buf *
     yg__post_reply(c->id, "", "Out of memory");
     return c->id;
   }
+#ifdef _WIN32
+  if (yg__opens_sheet(type)) yg__allow_foreground();
+#endif
   if (!yg__g.hello_done && !is_hello) {
     c->held = line; /* YouGame.ready() in the web SDK: calls wait for hello */
     c->held_len = len;
